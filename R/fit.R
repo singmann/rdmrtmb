@@ -17,15 +17,32 @@
 #' start point. Use `coef(fit, type = "response")` for the back-transformed
 #' values.
 #'
+#' A parameter whose formula is a list with one formula per accumulator is
+#' estimated separately for each accumulator, e.g. `b = list(~1, ~1)` for a
+#' threshold that differs between two responses, which is a response bias. Such
+#' a list of intercepts estimates one threshold distance per accumulator. The
+#' expanded data contain the accumulator as the factor `lR`, and `matchfun` adds
+#' the latent match as the factor `lM`, so that the model can be written in the
+#' notation of the EMC2 package: `B ~ 0 + lR` there is `b = list(~1, ~1, ...)`
+#' here, and `v ~ 0 + S + lM` is unchanged.
+#'
 #' @param data A `data.frame` with one row per trial.
 #' @param rt,response Response times and responses. Either a vector or the name
 #'   of a column of `data`.
 #' @param formula Named list of formulas, one per free model parameter. Valid
-#'   names are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`; see `rdm_design()` for the
-#'   drift rates, which accept either one formula containing the column
-#'   `response` (the accumulator) or a list of formulas, one per accumulator.
+#'   names are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`. Every formula may be given
+#'   once, in which case the parameter is shared by all accumulators, or as a
+#'   list of `K` formulas, one per accumulator, e.g. `b = list(~1, ~1)` for a
+#'   threshold that differs between two responses. A single drift-rate formula
+#'   is evaluated on the expanded data, where the accumulator is available as
+#'   `response` (and as `lR`, see `matchfun`).
 #' @param fixed Named list of parameters held constant on their natural scale,
 #'   e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not the distance.
+#'   The value can have length 1 (shared) or one value per accumulator.
+#' @param matchfun Optional function of the expanded data returning a logical
+#'   vector, `TRUE` where the accumulator of a row matches the stimulus, e.g.
+#'   `function(d) d$S == d$lR`. The result is added to the expanded data as the
+#'   factor `lM`, so formulas can include the latent match.
 #' @param random A one-sided formula applied to every free parameter, or a named
 #'   list of one-sided formulas, one per parameter, e.g.
 #'   `list(A = ~(1 | id), t0 = ~(1 | id))`.
@@ -63,13 +80,13 @@
 fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
                     random = NULL, prior = list(sd = 0.5, beta = 2),
                     barrier = 1e3, control = list(), inner.control = list(),
-                    start = NULL, sdreport = TRUE) {
+                    start = NULL, sdreport = TRUE, matchfun = NULL) {
   if (is.character(rt) && length(rt) == 1L) rt <- data[[rt]]
   if (is.character(response) && length(response) == 1L) {
     response <- data[[response]]
   }
 
-  design <- rdm_design(data, rt, response, formula, fixed)
+  design <- rdm_design(data, rt, response, formula, fixed, matchfun)
   ranef <- rdm_ranef(random, data, design)
   nll <- rdm_nll(design, ranef, prior = prior, barrier = barrier)
 

@@ -167,16 +167,35 @@ nobs.rdm_fit <- function(object, ...) object$nobs
 #'
 #' @param object An `rdm_fit` object.
 #' @param ... Unused.
-#' @return A data frame with one row per trial and the columns `A`, `b`, `t0`,
-#'   `s` and one column of drift rates per accumulator.
+#' @return A data frame with the columns `A`, `b`, `t0`, `s` and the drift
+#'   rates. When all parameters are shared by the accumulators there is one row
+#'   per trial and one column of drift rates per accumulator. When a parameter
+#'   varies over accumulators the data frame has one row per trial and
+#'   accumulator, as does the `long` component of the design, and the drift rate
+#'   is in the column `v`.
 #' @export
 fitted.rdm_fit <- function(object, ...) {
-  out <- data.frame(A = object$pars$A, b = object$pars$b,
-                    t0 = object$pars$t0, s = object$pars$s,
-                    check.names = FALSE)
-  v <- object$pars$v
-  colnames(v) <- paste0("v", object$design$response_levels)
-  out <- cbind(out, as.data.frame(v))
+  mp <- object$pars
+  lv <- object$design$response_levels
+  ## the drift rates are the only parameter with one column per accumulator in
+  ## the wide format; the others need one row per trial and accumulator
+  expanded <- any(vapply(c("A", "b", "t0", "s"),
+                         \(p) isTRUE(object$design[[p]]$expanded), TRUE))
+  out <- if (expanded) {
+    out <- object$design$long
+    out$A <- as.vector(mp$A)
+    out$b <- as.vector(mp$b)
+    out$t0 <- as.vector(mp$t0)
+    out$s <- as.vector(mp$s)
+    out$v <- as.vector(mp$v)
+    out
+  } else {
+    out <- data.frame(A = mp$A[, 1], b = mp$b[, 1], t0 = mp$t0[, 1],
+                      s = mp$s[, 1], check.names = FALSE)
+    v <- mp$v
+    colnames(v) <- paste0("v", lv)
+    cbind(out, as.data.frame(v))
+  }
   rownames(out) <- NULL
   out
 }

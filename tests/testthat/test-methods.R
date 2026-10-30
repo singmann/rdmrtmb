@@ -64,7 +64,7 @@ test_that("fitted() and predict() return trial-level parameters", {
   fit <- fitted(f)
   expect_equal(nrow(fit), f$nobs)
   expect_named(fit, c("A", "b", "t0", "s", "v1", "v2", "v3"))
-  expect_equal(fit$A, f$pars$A)
+  expect_equal(fit$A, f$pars$A[, 1])
   expect_true(all(fit$b > fit$A))
   expect_equal(predict(f), fit)
   expect_equal(predict(f, type = "parameters"), fit)

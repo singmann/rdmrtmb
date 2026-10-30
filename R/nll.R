@@ -103,17 +103,25 @@ rdm_nll <- function(design, ranef = NULL,
     lin
   }
 
-  ## model parameters implied by a parameter vector
+  ## model parameters implied by a parameter vector, as matrices with one row
+  ## per trial and one column per accumulator
   pars_fun <- function(beta, u = NULL) {
     lin <- lin_fun(beta, if (is.null(u)) par$u else u)
     ## free parameters are exponentiated, fixed ones are used as given
-    A <- if (design$A$free) exp(lin$A) else lin$A
-    b <- if (design$b$free) A + exp(lin$b) else lin$b   # distance, so b > A
-    t0 <- if (design$t0$free) exp(lin$t0) else lin$t0
-    s <- if (is.null(lin$s)) rep(1, n) else if (design$s$free) exp(lin$s) else lin$s
-    v <- if (design$v$free) exp(lin$v) else lin$v
-    list(A = A, b = b, t0 = t0, s = s,
-         v = matrix(v / rep(s, times = K), nrow = n, ncol = K))
+    A0 <- if (is.null(design$A)) rep(0, n) else if (design$A$free) exp(lin$A) else lin$A
+    b0 <- if (is.null(design$b)) A0 + 1 else if (design$b$free) A0 + exp(lin$b) else lin$b
+    t00 <- if (is.null(design$t0)) rep(0, n) else if (design$t0$free) exp(lin$t0) else lin$t0
+    s0 <- if (is.null(design$s)) rep(1, n) else if (design$s$free) exp(lin$s) else lin$s
+    v0 <- exp(lin$v)
+    ## parameters that vary over accumulators have one value per row of the
+    ## expanded data; the others are recycled over the accumulators
+    expand <- function(x) if (length(x) == n * K) x else rep(x, times = K)
+    s0 <- expand(s0)
+    list(A = matrix(expand(A0), n, K),
+         b = matrix(expand(b0), n, K),
+         t0 = matrix(expand(t00), n, K),
+         s = matrix(s0, n, K),
+         v = matrix(expand(v0), n, K))
   }
 
   fn <- function(par) {
@@ -121,9 +129,9 @@ rdm_nll <- function(design, ranef = NULL,
     t <- design$rt - mp$t0
 
     ## barrier keeping the decision time positive
-    nll <- barrier * sum(smooth_violation(1e3 * t))
+    nll <- barrier * sum(violation(1e3 * t))
     t_use <- sqrt(t^2 + 1e-12)
-    nll <- nll - sum(rdm_loglik(t_use, mp$A / mp$s, mp$b / mp$s, mp$v,
+    nll <- nll - sum(rdm_loglik(t_use, mp$A / mp$s, mp$b / mp$s, mp$v / mp$s,
                                 design$response))
 
     if (!is.null(prior$beta)) {
@@ -148,10 +156,10 @@ rdm_nll <- function(design, ranef = NULL,
        design = design, ranef = ranef, present = present)
 }
 
-## a smooth version of max(0, x), exactly zero for positive x
-smooth_violation <- function(x) {
-  0.5 * (sqrt(x^2 + 1e-6) - x)
-}
+## a smooth version of max(0, -x), which is zero up to rounding for positive x
+## and grows linearly for negative x; the small constant keeps the derivative
+## finite at zero
+violation <- function(x) 0.5 * (sqrt(x^2 + 1e-12) - x)
 
 ## starting values for the coefficients of one parameter
 coef_starts <- function(names, par, design) {

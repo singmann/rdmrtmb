@@ -52,9 +52,9 @@ rdm_ranef <- function(random, data, design) {
       stop("the random-effects formula for `", par, "` must be one-sided, e.g. ",
            "~(1 | id).", call. = FALSE)
     }
-    ## random effects on the drift rates vary over trials and accumulators, so
-    ## they are evaluated on the expanded data
-    re_data <- if (par == "v") design$long else design$data
+    ## random effects on a parameter that varies over trials and accumulators
+    ## are evaluated on the expanded data
+    re_data <- if (isTRUE(design[[par]]$expanded)) design$long else design$data
     terms <- reformulas::findbars(form)
     if (!length(terms)) {
       stop("the random-effects formula for `", par, "` has no `(term | group)` ",

@@ -54,3 +54,30 @@ test_that("a model with covariates on the drift rates can be fitted", {
   expect_true(any(grepl("cond", names(f$beta))))
   expect_equal(nrow(fitted(f)), nrow(dat))
 })
+
+test_that("thresholds can differ between accumulators", {
+  set.seed(3)
+  n <- 900
+  pars <- list(A = rep(0.5, n), t0 = rep(0.3, n), s = rep(1, n),
+               b = cbind(rep(1.4, n), rep(0.9, n)),
+               v = matrix(1.5, n, 2))
+  draw <- rdm_rand_race(pars)
+  dat <- data.frame(rt = draw$rt, response = draw$response)
+
+  f <- fit_rdm(dat, rt = "rt", response = "response",
+               formula = list(A = ~1, t0 = ~1, b = list(~1, ~1),
+                              v = list(~1, ~1)))
+  ce <- coef(f, type = "response")
+  ## the lower threshold wins more often; the coefficients of `b` are the
+  ## distance between the threshold and the start point, so they are b - A
+  expect_gt(mean(dat$response == 2), 0.5)
+  expect_gt(ce[["b[1]:(Intercept)"]], ce[["b[2]:(Intercept)"]])
+  expect_equal(unname(ce[["b[1]:(Intercept)"]]), 0.9, tolerance = 0.2)
+  expect_equal(unname(ce[["b[2]:(Intercept)"]]), 0.4, tolerance = 0.2)
+
+  ## the fitted() values are one row per trial and accumulator
+  fit <- fitted(f)
+  expect_equal(nrow(fit), 2 * n)
+  expect_true(all(c("lR", "A", "b", "v") %in% names(fit)))
+  expect_equal(fit$b[fit$lR == "1"], rep(1.4, n), tolerance = 0.2)
+})

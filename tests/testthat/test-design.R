@@ -113,3 +113,42 @@ test_that("the print method summarises the design", {
   expect_true(any(grepl("6 trials, 2 accumulators", out)))
   expect_true(any(grepl("b: 2 coefficient", out)))
 })
+
+test_that("every parameter can be given one formula per accumulator", {
+  d <- rdm_design(example_data, example_data$rt, example_data$resp,
+                  formula = list(A = ~1, t0 = ~1, b = list(~1, ~cond),
+                                 v = list(~1, ~1)))
+  expect_true(d$b$per_accumulator)
+  expect_identical(d$b$coef_names,
+                   c("b[a]:(Intercept)", "b[b]:(Intercept)", "b[b]:condy"))
+  expect_identical(dim(d$b$X), c(12L, 3L))
+  ## rows 1:6 belong to accumulator a, rows 7:12 to accumulator b
+  expect_equal(d$b$X[1:6, 1], rep(1, 6))
+  expect_equal(d$b$X[7:12, 2], rep(1, 6))
+  expect_equal(d$b$X[7:12, 3], c(0, 0, 0, 1, 1, 1))
+  expect_equal(d$b$X[1:6, 3], rep(0, 6))
+  expect_false(d$A$per_accumulator)
+  expect_false(d$s$free)   # the default fixed s
+})
+
+test_that("a fixed parameter can take one value per accumulator", {
+  d <- rdm_design(example_data, example_data$rt, example_data$resp,
+                  formula = list(A = ~1, t0 = ~1, v = ~1),
+                  fixed = list(s = 1, b = c(1.2, 0.8)))
+  expect_true(d$b$expanded)
+  expect_equal(d$b$value, rep(c(1.2, 0.8), each = 6))
+})
+
+test_that("matchfun adds the latent match factor to the expanded data", {
+  dat <- data.frame(rt = runif(6, 0.5, 1.5), resp = rep(c("a", "b"), 3),
+                    S = rep(c("a", "b"), 3))
+  d <- rdm_design(dat, dat$rt, dat$resp, formula = list(A = ~1, t0 = ~1, v = ~ S),
+                  matchfun = function(x) x$S == x$lR)
+  expect_identical(levels(d$long$lM), c("FALSE", "TRUE"))
+  expect_identical(as.character(d$long$lM[1:6]), as.character(dat$S == "a"))
+  expect_identical(as.character(d$long$lM[7:12]), as.character(dat$S == "b"))
+  expect_identical(levels(d$long$lR), c("a", "b"))
+  expect_error(rdm_design(dat, dat$rt, dat$resp, formula = list(A = ~1, t0 = ~1, v = ~1),
+                          matchfun = function(x) TRUE),
+               "one value per trial and")
+})

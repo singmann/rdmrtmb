@@ -12,6 +12,17 @@ matrix, and random effects can be specified per parameter with lme4-style
 terms such as \code{(1 | id)}. Random effects are integrated with the Laplace
 approximation using automatic differentiation provided by RTMB.
 }
+\details{
+The drift rates of a race model necessarily differ between the accumulators:
+each response alternative accumulates evidence at its own rate. The remaining
+parameters (the start point range \code{A}, the threshold \code{b}, the non-decision
+time \code{t0} and the diffusion constant \code{s}) are properties of the race as a
+whole and are shared by the accumulators when they are given a single
+formula. Any of them can nevertheless be estimated separately for each
+accumulator by passing a list of formulas, one per accumulator, instead of a
+single formula; see \code{\link[=fit_rdm]{fit_rdm()}}. A threshold that differs between the
+response alternatives is a response bias.
+}
 \seealso{
 Useful links:
 \itemize{

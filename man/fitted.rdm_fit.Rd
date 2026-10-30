@@ -12,8 +12,12 @@
 \item{...}{Unused.}
 }
 \value{
-A data frame with one row per trial and the columns \code{A}, \code{b}, \code{t0},
-\code{s} and one column of drift rates per accumulator.
+A data frame with the columns \code{A}, \code{b}, \code{t0}, \code{s} and the drift
+rates. When all parameters are shared by the accumulators there is one row
+per trial and one column of drift rates per accumulator. When a parameter
+varies over accumulators the data frame has one row per trial and
+accumulator, as does the \code{long} component of the design, and the drift rate
+is in the column \code{v}.
 }
 \description{
 Trial-level model parameters of a fitted RDM

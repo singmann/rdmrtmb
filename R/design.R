@@ -1,32 +1,43 @@
 # Design matrices for the RDM.
 #
 # Every model parameter (A, b, t0, v, s) gets its own model matrix, built from
-# a user-supplied formula and the data. The drift rates additionally vary across
-# accumulators, so their design has one row per trial and accumulator.
+# a user-supplied formula and the data. A formula can be given once, in which
+# case the parameter is shared by all accumulators, or as a list with one
+# formula per accumulator, in which case every accumulator gets its own
+# coefficients.
 
 rdm_pars <- c("A", "b", "t0", "v", "s")
 
 #' Build the design matrices of an RDM model
 #'
 #' Turns one formula per model parameter into a model matrix. The design is
-#' stored in accumulator-major order for the drift rates, that is rows
-#' `(j - 1) * n + 1:n` belong to accumulator `j`.
+#' stored in accumulator-major order for parameters with one formula per
+#' accumulator, that is rows `(j - 1) * n + 1:n` belong to accumulator `j`.
 #'
 #' @param data A `data.frame` with one row per trial.
 #' @param rt Numeric vector of response times.
 #' @param response Vector of observed responses; the sorted unique values define
 #'   the accumulators and are coded `1:K`.
 #' @param formula Named list of formulas, one per free parameter. Valid names
-#'   are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`. For `v` either a single formula
-#'   is given, in which case the column `response` refers to the accumulator,
-#'   or a list of `K` formulas with one formula per accumulator.
+#'   are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`. Every formula may either be a
+#'   single formula, in which case the parameter is the same for all
+#'   accumulators, or a list of `K` formulas, one per accumulator. A single
+#'   formula for the drift rates is evaluated on the expanded data, so the
+#'   column `response` is available and refers to the accumulator.
 #' @param fixed Named list of parameters that are held constant, on their
 #'   natural scale, e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not
-#'   the threshold distance. A constant for `v` can be a vector of length `K`.
+#'   the threshold distance. The value can have length 1 (shared) or `K` (one
+#'   value per accumulator).
+#' @param matchfun Optional function of the expanded data that returns a logical
+#'   vector, `TRUE` where the accumulator of a row is the one the stimulus calls
+#'   for, e.g. `function(d) d$S == d$lR`. The expanded data always contains the
+#'   accumulator as the factor `lR`; with `matchfun` the logical is added as the
+#'   factor `lM`, so that formulas can use the latent match.
 #' @return An object of class `rdm_design`.
 #' @keywords internal
 #' @noRd
-rdm_design <- function(data, rt, response, formula, fixed = list(s = 1)) {
+rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
+                       matchfun = NULL) {
   if (!is.data.frame(data)) stop("`data` must be a data.frame.", call. = FALSE)
   n <- nrow(data)
   if (length(rt) != n) stop("`rt` must have one value per row of `data`.", call. = FALSE)
@@ -65,91 +76,76 @@ rdm_design <- function(data, rt, response, formula, fixed = list(s = 1)) {
     stop("the drift rates `v` need a formula.", call. = FALSE)
   }
 
-  ## drift rates: expand the data to one row per trial and accumulator
+  ## expand the data to one row per trial and accumulator
   long <- data[rep(seq_len(n), K), , drop = FALSE]
   long[["response"]] <- factor(rep(levels_response, each = n), levels = levels_response)
+  ## the accumulator as a factor, as it is called in the EMC2 modelling framework
+  long[["lR"]] <- long[["response"]]
+  if (!is.null(matchfun)) {
+    if (!is.function(matchfun)) stop("`matchfun` must be a function.", call. = FALSE)
+    m <- matchfun(long)
+    if (!is.logical(m) || length(m) != nrow(long)) {
+      stop("`matchfun` must return a logical vector with one value per trial and ",
+           "accumulator.", call. = FALSE)
+    }
+    long[["lM"]] <- factor(m, levels = c(FALSE, TRUE))
+  }
 
   design <- list(n = n, K = K, rt = rt, response = resp_idx,
                  response_levels = levels_response, data = data, long = long,
                  formula = formula, fixed = fixed)
 
-  for (par in c("A", "b", "t0", "s")) {
+  for (par in rdm_pars) {
     design[[par]] <- if (par %in% names(fixed)) {
-      fixed_spec(fixed[[par]], n, par)
+      fixed_spec(fixed[[par]], n, par, K)
     } else if (par %in% names(formula)) {
-      free_spec(formula[[par]], data, n, par)
+      par_spec(formula[[par]], data, long, n, K, par, levels_response)
     } else {
       NULL
     }
-  }
-
-  design[["v"]] <- if ("v" %in% names(fixed)) {
-    fixed_spec(fixed[["v"]], n, "v", K = K)
-  } else if (inherits(formula[["v"]], "formula")) {
-    free_spec(formula[["v"]], long, n * K, "v")
-  } else {
-    v_spec_list(formula[["v"]], data, n, K, levels_response)
   }
 
   check_identified(design)
   structure(design, class = c("rdm_design", "list"))
 }
 
-## a free parameter: a model matrix with one row per observation
-free_spec <- function(form, data, n, par) {
-  if (!inherits(form, "formula")) {
-    stop("the formula for `", par, "` must be a formula, e.g. ~1.", call. = FALSE)
-  }
-  X <- stats::model.matrix(form, data)
-  if (nrow(X) != n) stop("internal error: wrong number of rows for `", par, "`.",
-                         call. = FALSE)
-  if (ncol(X) == 0) {
-    stop("the formula for `", par, "` has no coefficients (did you use `~ 0`?).",
-         call. = FALSE)
-  }
-  rownames(X) <- NULL
-  list(free = TRUE, X = X, coef_names = paste0(par, ":", colnames(X)),
-       contrasts = attr(X, "contrasts"), formula = form)
-}
-
-## a parameter held constant, recycled to the required length
-fixed_spec <- function(value, n, par, K = NULL) {
-  if (!is.numeric(value) || anyNA(value) || any(value <= 0)) {
-    stop("the fixed value for `", par, "` must be a positive number.", call. = FALSE)
-  }
-  ## without K the constant is recycled over trials; for the drift rates it can
-  ## also be given once per accumulator and is then recycled over trials
-  if (is.null(K)) {
-    if (length(value) == 1) value <- rep(value, n)
-    if (length(value) != n) {
-      stop("the fixed value for `", par, "` must have length 1.", call. = FALSE)
+## the design of one free parameter
+##
+## `X` has one row per trial for a shared parameter and one row per trial and
+## accumulator for a parameter that is expanded to the accumulators
+par_spec <- function(form, data, long, n, K, par, levels) {
+  if (inherits(form, "formula")) {
+    ## a single drift-rate formula is evaluated on the expanded data so that the
+    ## accumulator is available as the column `response`
+    obs <- if (par == "v") long else data
+    X <- stats::model.matrix(form, obs)
+    if (ncol(X) == 0) {
+      stop("the formula for `", par, "` has no coefficients (did you use `~ 0`?).",
+           call. = FALSE)
     }
-  } else if (length(value) == 1) {
-    value <- rep(value, n * K)
-  } else if (length(value) == K) {
-    value <- rep(value, each = n)
-  } else {
-    stop("the fixed value for `", par, "` must have length 1 or ", K, ".",
-         call. = FALSE)
+    if (nrow(X) != nrow(obs)) {
+      stop("internal error: wrong number of rows for `", par, "`.", call. = FALSE)
+    }
+    rownames(X) <- NULL
+    return(list(free = TRUE, X = X, coef_names = paste0(par, ":", colnames(X)),
+                contrasts = attr(X, "contrasts"), formula = form,
+                expanded = nrow(X) != n, per_accumulator = FALSE))
   }
-  list(free = FALSE, value = value, coef_names = character(),
-       formula = NULL, contrasts = NULL)
-}
 
-## drift rates given as one formula per accumulator, stacked accumulator-major
-v_spec_list <- function(forms, data, n, K, levels_response) {
-  if (!is.list(forms) || length(forms) != K || !all(vapply(forms, inherits, TRUE, "formula"))) {
-    stop("`v` must be a single formula or a list of ", K,
-         " formulas, one per accumulator.", call. = FALSE)
+  if (!is.list(form) || length(form) != K ||
+        !all(vapply(form, inherits, TRUE, "formula"))) {
+    stop("the formula for `", par, "` must be a single formula or a list of ",
+         K, " formulas, one per accumulator.", call. = FALSE)
   }
-  blocks <- lapply(seq_len(K), \(j) stats::model.matrix(forms[[j]], data))
+  blocks <- lapply(seq_len(K), \(j) stats::model.matrix(form[[j]], data))
   p_j <- vapply(blocks, ncol, 1L)
   if (any(p_j == 0)) {
-    stop("every drift-rate formula needs at least one coefficient.", call. = FALSE)
+    stop("every formula for `", par, "` needs at least one coefficient.",
+         call. = FALSE)
   }
   X <- matrix(0, nrow = n * K, ncol = sum(p_j))
   colnames(X) <- unlist(lapply(seq_len(K), \(j) {
-    paste0("v[", levels_response[j], "]:", colnames(blocks[[j]]))
+    paste0(par, "[", levels[j], "]:", colnames(blocks[[j]]))
   }))
   start <- cumsum(c(0, p_j))
   for (j in seq_len(K)) {
@@ -157,7 +153,27 @@ v_spec_list <- function(forms, data, n, K, levels_response) {
     X[rows, start[j] + seq_len(p_j[j])] <- blocks[[j]]
   }
   list(free = TRUE, X = X, coef_names = colnames(X), contrasts = NULL,
-       formula = forms, per_accumulator = TRUE)
+       formula = form, expanded = TRUE, per_accumulator = TRUE)
+}
+
+## a parameter held constant: either one value for all accumulators or one value
+## per accumulator, recycled to the required length
+fixed_spec <- function(value, n, par, K) {
+  if (!is.numeric(value) || anyNA(value) || any(value <= 0)) {
+    stop("the fixed value for `", par, "` must be a positive number.", call. = FALSE)
+  }
+  if (length(value) == 1) {
+    value <- rep(value, n)
+    expanded <- FALSE
+  } else if (length(value) == K) {
+    value <- rep(value, each = n)
+    expanded <- TRUE
+  } else {
+    stop("the fixed value for `", par, "` must have length 1 or ", K, ".",
+         call. = FALSE)
+  }
+  list(free = FALSE, value = value, coef_names = character(), formula = NULL,
+       contrasts = NULL, expanded = expanded, per_accumulator = expanded)
 }
 
 ## the diffusion constant s is only identified if the scale of the model is
@@ -182,10 +198,16 @@ print.rdm_design <- function(x, ...) {
     if (is.null(spec)) {
       cat("  ", par, ": not in the model\n", sep = "")
     } else if (!spec$free) {
-      cat("  ", par, ": fixed at ", unique(spec$value)[1], "\n", sep = "")
+      if (spec$expanded) {
+        cat("  ", par, ": fixed per accumulator at ",
+            paste(unique(spec$value), collapse = ", "), "\n", sep = "")
+      } else {
+        cat("  ", par, ": fixed at ", unique(spec$value)[1], "\n", sep = "")
+      }
     } else {
-      cat("  ", par, ": ", ncol(spec$X), " coefficient(s): ",
-          paste(spec$coef_names, collapse = ", "), "\n", sep = "")
+      cat("  ", par, ": ", ncol(spec$X), " coefficient(s)",
+          if (spec$per_accumulator) ", one set per accumulator" else "",
+          ": ", paste(spec$coef_names, collapse = ", "), "\n", sep = "")
     }
   }
   invisible(x)

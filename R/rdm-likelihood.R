@@ -62,8 +62,10 @@ rdm_log_S <- function(t, A, b, v) {
 #' of accumulator `j` at `t` times the survival probabilities of all other
 #' accumulators at `t`.
 #'
-#' @param t Decision time, a vector with one element per trial.
-#' @param A,b,t0 Trial-wise parameter vectors, see `rdm_log_f()`.
+#' @param t Decision time, a matrix with one row per trial and one column per
+#'   accumulator, i.e. the response time minus the non-decision time.
+#' @param A,b,s Matrices of start point, threshold and diffusion constant, with
+#'   the same dimensions as `t`; see `rdm_log_f()`.
 #' @param v Matrix of drift rates with one row per trial and one column per
 #'   accumulator.
 #' @param response Integer vector of observed responses, coded `1:K`.
@@ -72,14 +74,25 @@ rdm_log_S <- function(t, A, b, v) {
 #' @noRd
 rdm_loglik <- function(t, A, b, v, response) {
   K <- ncol(v)
-  n <- length(t)
+  n <- nrow(v)
+  t <- as_par_matrix(t, n, K)
+  A <- as_par_matrix(A, n, K)
+  b <- as_par_matrix(b, n, K)
   ## not vapply(): it rejects the representation RTMB uses when taping second
   ## derivatives for the Laplace approximation
-  log_f <- do.call(cbind, lapply(seq_len(K), \(j) rdm_log_f(t, A, b, v[, j])))
-  log_S <- do.call(cbind, lapply(seq_len(K), \(j) rdm_log_S(t, A, b, v[, j])))
+  log_f <- do.call(cbind, lapply(seq_len(K),
+                                 \(j) rdm_log_f(t[, j], A[, j], b[, j], v[, j])))
+  log_S <- do.call(cbind, lapply(seq_len(K),
+                                 \(j) rdm_log_S(t[, j], A[, j], b[, j], v[, j])))
   out <- numeric(n)
   for (j in seq_len(K)) {
     out <- out + (response == j) * (log_f[, j] + rowSums(log_S[, -j, drop = FALSE]))
   }
   out
+}
+
+## parameters that are the same for all accumulators are given as a vector of
+## length n and are recycled to one value per accumulator
+as_par_matrix <- function(x, n, K) {
+  if (!is.null(dim(x))) x else matrix(x, n, K)
 }
