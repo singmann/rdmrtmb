@@ -1,0 +1,13 @@
+# R artefacts
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rcheck/
+*.tar.gz
+*.o
+*.so
+*.dll
+
+# macOS
+.DS_Store

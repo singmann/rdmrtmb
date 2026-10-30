@@ -1,0 +1,29 @@
+Package: rdmrtmb
+Title: Frequentist Estimation of the Racing Diffusion Model with 'RTMB'
+Version: 0.0.0.9000
+Authors@R:
+    person("Henrik", "Singmann", role = c("aut", "cre"),
+           email = "singmann@gmail.com")
+Description: Maximum likelihood estimation of the racing diffusion model of
+    speeded decision making. Every model parameter can be described by its own
+    model matrix, and random effects can be specified per parameter via
+    lme4-style terms such as '(1 | id)'. Random effects are integrated with the
+    Laplace approximation using automatic differentiation provided by 'RTMB'.
+License: GPL-3
+URL: https://github.com/singmann/rdmrtmb
+BugReports: https://github.com/singmann/rdmrtmb/issues
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends:
+    R (>= 4.1)
+Imports:
+    RTMB,
+    reformulas,
+    stats,
+    utils
+Suggests:
+    numDeriv,
+    rtdists,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0
