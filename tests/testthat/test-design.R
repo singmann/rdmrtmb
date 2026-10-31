@@ -75,23 +75,90 @@ test_that("acc(1) and `response` describe the same linear predictor", {
 test_that("a term that refers to .acc is a single predictor", {
   d <- rdm_design(example_data, example_data$rt, example_data$resp,
                   formula = list(A = ~1, t0 = ~1, v = ~ acc(.acc == resp)))
-  expect_identical(d$v$coef_names, c("v:(Intercept)", "v:acc(.acc == resp)TRUE"))
+  expect_identical(d$v$coef_names, c("v:(Intercept)", "v:acc(.acc == resp)"))
   ## row 1 is a response "a" from accumulator a, row 2 a "b" from accumulator a
   expect_equal(unname(d$v$X[1, 2]), 1)
   expect_equal(unname(d$v$X[2, 2]), 0)
   expect_equal(sum(d$v$X[, 2]), 6)
 })
 
-test_that("contrasts can be set for terms inside acc()", {
+test_that("a comparison inside acc() is a 0/1 indicator", {
+  ## a logical is coded 0/1 and not, as model.matrix would, as a factor: with
+  ## two such terms the second would otherwise be coded against the first
   d <- rdm_design(example_data, example_data$rt, example_data$resp,
-                  formula = list(A = ~1, t0 = ~1, v = ~ acc(.acc == resp)),
-                  contrasts = list("acc(.acc == resp)" = contr.sum))
-  expect_identical(d$v$coef_names, c("v:(Intercept)", "v:acc(.acc == resp)1"))
-  expect_setequal(unique(d$v$X[, 2]), c(-1, 1))
-  ## and by writing the coding directly, with the opposite sign for the match
+                  formula = list(A = ~1, t0 = ~1,
+                                 v = ~ 0 + acc(.acc == resp) + acc(.acc == "a")))
+  expect_identical(d$v$coef_names,
+                   c("v:acc(.acc == resp)", "v:acc(.acc == \"a\")"))
+  expect_setequal(unique(d$v$X[, 1]), c(0, 1))
+  expect_setequal(unique(d$v$X[, 2]), c(0, 1))
+  ## the coding can be written out, with the opposite sign for the match
   d2 <- rdm_design(example_data, example_data$rt, example_data$resp,
-                   formula = list(A = ~1, t0 = ~1, v = ~ acc(2 * (.acc == resp) - 1)))
-  expect_equal(unname(d2$v$X[, 2]), unname(-d$v$X[, 2]))
+                   formula = list(A = ~1, t0 = ~1,
+                                  v = ~ acc(2 * (.acc == resp) - 1)))
+  expect_equal(unname(d2$v$X[, 2]), unname(2 * d$v$X[, 1] - 1))
+})
+
+test_that("a free s is anchored at one accumulator", {
+  levs <- sort(unique(as.character(example_data$resp)))
+  fml <- list(A = ~1, t0 = ~1, v = ~ acc(1), s = ~ acc(1))
+  d <- rdm_design(example_data, example_data$rt, example_data$resp, formula = fml,
+                  fixed = list())
+  ## the first accumulator is held at 1, the others are estimated relative to it
+  expect_identical(d$s$anchor$level, levs[1])
+  expect_identical(d$s$coef_names, paste0("s[", levs[2], "]:(Intercept)"))
+  s <- exp(drop(d$s$X %*% 0.3))
+  expect_equal(unique(s[d$long$.acc == levs[1]]), 1)
+  expect_equal(unique(s[d$long$.acc == levs[2]]), exp(0.3))
+
+  ## another accumulator can be anchored instead
+  d2 <- rdm_design(example_data, example_data$rt, example_data$resp, formula = fml,
+                   fixed = list(), anchor = list(s = levs[2]))
+  expect_identical(d2$s$anchor$level, levs[2])
+  expect_identical(d2$s$coef_names, paste0("s[", levs[1], "]:(Intercept)"))
+  s2 <- exp(drop(d2$s$X %*% -0.4))
+  expect_equal(unique(s2[d2$long$.acc == levs[2]]), 1)
+  expect_equal(unique(s2[d2$long$.acc == levs[1]]), exp(-0.4))
+
+  ## leaving an accumulator out of the formula fixes that one
+  d3 <- rdm_design(example_data, example_data$rt, example_data$resp,
+                   formula = list(A = ~1, t0 = ~1, v = ~ acc(1),
+                                  s = as.formula(paste0(
+                                    "~ 0 + acc(.acc == \"", levs[1], "\")"))),
+                   fixed = list())
+  expect_null(d3$s$anchor)
+  expect_identical(d3$s$coef_names, paste0("s:acc(.acc == \"", levs[1], "\")"))
+  s3 <- exp(drop(d3$s$X %*% 0.7))
+  expect_equal(unique(s3[d3$long$.acc == levs[1]]), exp(0.7))
+  expect_equal(unique(s3[d3$long$.acc != levs[1]]), 1)
+})
+
+test_that("anchoring s fails when no parameter pins the scale", {
+  ## A, b and v all vary over the accumulators, so every s is absorbed
+  fml <- list(A = ~ acc(1), t0 = ~1, b = ~ acc(1), v = ~ acc(1), s = ~ acc(1))
+  expect_error(rdm_design(example_data, example_data$rt, example_data$resp,
+                          formula = fml, fixed = list()),
+               "cannot be estimated per accumulator")
+  ## anchor for a parameter that is not s, or for an s that is already fixed
+  fml <- list(A = ~1, t0 = ~1, v = ~1, s = ~ acc(1))
+  expect_error(rdm_design(example_data, example_data$rt, example_data$resp,
+                          formula = fml, fixed = list(), anchor = list(v = "a")),
+               "only applies to `s`")
+  expect_error(rdm_design(example_data, example_data$rt, example_data$resp,
+                          formula = list(A = ~1, t0 = ~1, v = ~1),
+                          fixed = list(), anchor = list(s = "a")),
+               "already fixed")
+  ## an s formula that the anchor cannot be dropped from
+  expect_error(rdm_design(example_data, example_data$rt, example_data$resp,
+                          formula = list(A = ~1, t0 = ~1, v = ~1,
+                                         s = ~ 1 + acc(.acc == "a")),
+                          fixed = list()),
+               "cannot tell which accumulator")
+  ## a single s shared by all accumulators has no accumulator to anchor
+  expect_error(rdm_design(example_data, example_data$rt, example_data$resp,
+                          formula = list(A = ~1, t0 = ~1, v = ~1, s = ~1),
+                          fixed = list(), anchor = list(s = "a")),
+               "shared by all accumulators")
 })
 
 test_that("an accumulator-relative term can be interacted with other terms", {
@@ -99,8 +166,8 @@ test_that("an accumulator-relative term can be interacted with other terms", {
                   formula = list(A = ~1, t0 = ~1,
                                  v = ~ cond * acc(.acc == resp)))
   expect_identical(d$v$coef_names,
-                   c("v:(Intercept)", "v:condy", "v:acc(.acc == resp)TRUE",
-                     "v:condy:acc(.acc == resp)TRUE"))
+                   c("v:(Intercept)", "v:condy", "v:acc(.acc == resp)",
+                     "v:condy:acc(.acc == resp)"))
 })
 
 test_that("redundant and unsupported acc() terms are rejected", {

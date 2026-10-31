@@ -273,6 +273,10 @@ print.rdm_fit <- function(x, ...) {
       " (df = ", x$df, ")\n", sep = "")
   cat("  optimiser: ", x$opt$method, ", convergence ", x$opt$convergence,
       ", max |gradient| ", format(x$max_grad, digits = 3), "\n", sep = "")
+  if (!is.null(x$design$s$anchor)) {
+    cat("  diffusion constant s anchored at 1 for ", x$design$s$anchor$level,
+        "\n", sep = "")
+  }
   cat("  fixed effects (log scale):\n")
   print(round(x$beta, 4))
   invisible(x)

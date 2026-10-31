@@ -24,6 +24,11 @@
 #' (`A = 0`), a threshold one unit above the start point (`b = A + 1`) and no
 #' drift-rate bias. `v` is required, because the drift rates are what drives
 #' the race. `s` is fixed to 1 by [fit_rdm()] unless a formula is given for it.
+#' A free `s` needs the scale of the model pinned down: with `s = ~ acc(1)` the
+#' diffusion constant of the first response level is held at 1 and the others
+#' are estimated relative to it (see the `anchor` argument of [fit_rdm()]),
+#' and a formula that leaves an accumulator out, e.g.
+#' `s = ~ 0 + acc(.acc != "Word")`, fixes that one instead.
 #'
 #' @param A,b,t0,v,s One-sided formulas named after the model parameters, or
 #'   `NULL` for a parameter that is left out of the model. A two-sided formula

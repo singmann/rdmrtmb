@@ -49,6 +49,13 @@
 #' @param contrasts Named list of contrast matrices, passed on to
 #'   [stats::model.matrix()]. The contrasts of a term inside `acc()` are given
 #'   under its full name, e.g. `list("acc(.acc == Word)" = contr.sum)`.
+#' @param anchor Named list choosing which accumulator the diffusion constant
+#'   `s` is anchored at, e.g. `list(s = "Word")`. A free `s` scales `A`, `b` and
+#'   `v`, so the scale of the model has to be pinned down somewhere. With
+#'   `s = ~ acc(1)` the diffusion constant of the first response level is fixed
+#'   at 1 and the other ones are estimated relative to it; `anchor` picks a
+#'   different accumulator. Anchoring one accumulator is only enough when at
+#'   least one of `A`, `b` and `v` is shared by all accumulators.
 #' @param prior A list with elements `sd` and `beta` giving the scale of the
 #'   half-normal prior on the random-effect standard deviations and of the
 #'   normal prior on the fixed effects (and on the correlations of `cs()`
@@ -84,14 +91,15 @@
 fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
                     prior = list(sd = 0.5, beta = 2),
                     barrier = 1e3, control = list(), inner.control = list(),
-                    start = NULL, sdreport = TRUE, contrasts = list()) {
+                    start = NULL, sdreport = TRUE, contrasts = list(),
+                    anchor = list()) {
   if (is.character(rt) && length(rt) == 1L) rt <- data[[rt]]
   if (is.character(response) && length(response) == 1L) {
     response <- data[[response]]
   }
 
   formula <- as_rdm_formula(formula)
-  design <- rdm_design(data, rt, response, formula, fixed, contrasts)
+  design <- rdm_design(data, rt, response, formula, fixed, contrasts, anchor)
   ranef <- rdm_ranef(design)
   nll <- rdm_nll(design, ranef, prior = prior, barrier = barrier)
 

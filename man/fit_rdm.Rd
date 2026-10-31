@@ -16,7 +16,8 @@ fit_rdm(
   inner.control = list(),
   start = NULL,
   sdreport = TRUE,
-  contrasts = list()
+  contrasts = list(),
+  anchor = list()
 )
 }
 \arguments{
@@ -65,6 +66,14 @@ those of the model coefficients.}
 \item{contrasts}{Named list of contrast matrices, passed on to
 \code{\link[stats:model.matrix]{stats::model.matrix()}}. The contrasts of a term inside \code{acc()} are given
 under its full name, e.g. \code{list("acc(.acc == Word)" = contr.sum)}.}
+
+\item{anchor}{Named list choosing which accumulator the diffusion constant
+\code{s} is anchored at, e.g. \code{list(s = "Word")}. A free \code{s} scales \code{A}, \code{b} and
+\code{v}, so the scale of the model has to be pinned down somewhere. With
+\code{s = ~ acc(1)} the diffusion constant of the first response level is fixed
+at 1 and the other ones are estimated relative to it; \code{anchor} picks a
+different accumulator. Anchoring one accumulator is only enough when at
+least one of \code{A}, \code{b} and \code{v} is shared by all accumulators.}
 }
 \value{
 An object of class \code{rdm_fit}, a list with the components
@@ -101,6 +110,12 @@ bias). Inside \code{acc()} the current accumulator is available as \code{.acc}, 
 term that refers to it is a single predictor instead: \code{acc(.acc == Word)} is
 one coefficient that is 1 where the accumulator matches the word. See
 \code{\link[=acc]{acc()}}.
+
+The left-hand side of a random-effect term is built like the fixed part, so
+\code{acc()} can be used there as well and the random effects can mirror the fixed
+effects: with \code{v = ~ acc(Condition) + (acc(Condition) | id)} every
+accumulator-and-condition effect of the fixed part has a random counterpart.
+The accumulator variables \code{response} and \code{.acc} are available there too.
 }
 \seealso{
 \code{\link[=rdm_formula]{rdm_formula()}}, \code{\link[=acc]{acc()}}, \code{\link[=coef.rdm_fit]{coef.rdm_fit()}}, \code{\link[=confint.rdm_fit]{confint.rdm_fit()}},

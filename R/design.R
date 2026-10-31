@@ -56,7 +56,7 @@ acc <- function(x) x
 #' @keywords internal
 #' @noRd
 rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
-                       contrasts = list()) {
+                       contrasts = list(), anchor = list()) {
   if (!is.data.frame(data)) stop("`data` must be a data.frame.", call. = FALSE)
   n <- nrow(data)
   if (length(rt) != n) stop("`rt` must have one value per row of `data`.", call. = FALSE)
@@ -128,6 +128,7 @@ rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
     }
   }
 
+  design <- anchor_s(design, anchor)
   check_identified(design)
   structure(design, class = c("rdm_design", "list"))
 }
@@ -179,6 +180,10 @@ par_spec <- function(form, data, long, n, K, par, levels, contrasts, what = par)
   ## the accumulator-relative terms are evaluated on the expanded data
   for (expr in names(mapping)) {
     val <- eval(parse(text = expr), long, env)
+    ## a logical becomes a 0/1 indicator; passed on as a logical it would be
+    ## turned into a factor by model.matrix, which codes only the first such
+    ## term as full dummies and the rest against it
+    if (is.logical(val)) val <- as.numeric(val)
     if (length(val) == 1L) val <- rep(val, n * K)
     if (length(val) != n * K) {
       stop("the term `acc(", expr, ")` must have one value per trial and ",
@@ -337,17 +342,99 @@ pretty_names <- function(names, mapping) {
   names
 }
 
+## fix the diffusion constant of one accumulator at 1, which pins down the scale
+## of the model. With `s = ~ acc(1)` every accumulator is free, and one of them
+## is anchored; `anchor` chooses which one. A formula that leaves an accumulator
+## out already anchors that one and is left alone.
+anchor_s <- function(design, anchor = list()) {
+  unknown <- setdiff(names(anchor), "s")
+  if (length(unknown)) {
+    stop("`anchor` only applies to `s`, but it names ",
+         paste(unknown, collapse = ", "), ".", call. = FALSE)
+  }
+  wanted <- as.character(anchor$s)
+  if (length(wanted) > 1L) {
+    stop("`anchor$s` must name a single accumulator.", call. = FALSE)
+  }
+  spec <- design$s
+  if (is.null(spec) || !isTRUE(spec$free)) {
+    if (length(wanted)) {
+      stop("`anchor$s` was given, but `s` has no formula: it is already fixed. ",
+           "Give `s` a formula, e.g. s = ~ acc(1).", call. = FALSE)
+    }
+    return(design)
+  }
+  ## a single `s` shared by all accumulators is the scale of the whole model,
+  ## which can only be pinned by a fixed A, b or v; check_identified() does that
+  if (!isTRUE(spec$per_accumulator)) {
+    if (length(wanted)) {
+      stop("`anchor$s` was given, but `s` is one value shared by all ",
+           "accumulators, so there is no accumulator to anchor. Write ",
+           "s = ~ acc(1) to estimate one per accumulator.", call. = FALSE)
+    }
+    return(design)
+  }
+  acc <- as.character(design$long$.acc)
+  rows <- split(seq_along(acc), acc)
+  zero <- vapply(rows, \(i) all(spec$X[i, , drop = FALSE] == 0), TRUE)
+  if (any(zero)) {
+    if (length(wanted)) {
+      stop("`anchor$s` was given, but the formula of `s` already fixes the ",
+           "diffusion constant of ", paste(names(zero)[zero], collapse = ", "),
+           " at 1.", call. = FALSE)
+    }
+    return(design)
+  }
+  ## a single anchor is only enough when some other parameter ties the
+  ## accumulators together; otherwise every s is absorbed into its own A, b, v
+  per_acc <- vapply(c("A", "b", "v"),
+                    \(p) isTRUE(design[[p]]$per_accumulator), TRUE)
+  if (all(per_acc)) {
+    stop("`s` cannot be estimated per accumulator: A, b and v all vary over the ",
+         "accumulators, so each diffusion constant is absorbed into the scale of ",
+         "its own accumulator. Hold at least one of A, b and v constant over the ",
+         "accumulators.", call. = FALSE)
+  }
+  levs <- design$response_levels
+  ## only the per-accumulator intercepts of acc(1) are single columns that can
+  ## be dropped; anything else would need a linear constraint on the coefficients
+  if (ncol(spec$X) != design$K || !all(abs(rowSums(spec$X) - 1) < 1e-12)) {
+    stop("cannot tell which accumulator to anchor in the formula of `s`. ",
+         "Write it as `s = ~ acc(1)` to anchor an accumulator automatically, or ",
+         "leave one out, e.g. s = ~ 0 + acc(.acc != \"", levs[1], "\").",
+         call. = FALSE)
+  }
+  lvl <- if (length(wanted)) wanted else levs[1]
+  if (!lvl %in% levs) {
+    stop("`anchor$s` must be one of the accumulators: ",
+         paste(levs, collapse = ", "), ".", call. = FALSE)
+  }
+  drop <- match(lvl, levs)
+  design$s$anchor <- list(level = lvl, name = spec$coef_names[drop], value = 1)
+  design$s$X <- spec$X[, -drop, drop = FALSE]
+  design$s$coef_names <- spec$coef_names[-drop]
+  design
+}
+
 ## the diffusion constant s is only identified if the scale of the model is
-## pinned down by at least one of A, b and v
+## pinned down, either by fixing one of A, b and v or by leaving one accumulator
+## out of the formula of s, which fixes its diffusion constant at 1
 check_identified <- function(design) {
   if (!isTRUE(design$s$free)) return(invisible(TRUE))
-  pinned <- intersect(names(design$fixed), c("A", "b", "v"))
-  if (!length(pinned)) {
-    stop("a free `s` (the diffusion constant) is not identified: `s` scales ",
-         "`A`, `b` and `v`, so at least one of them must be fixed, e.g. ",
-         "fixed = list(A = 0.5).", call. = FALSE)
+  if (length(intersect(names(design$fixed), c("A", "b", "v")))) {
+    return(invisible(TRUE))
   }
-  invisible(TRUE)
+  acc <- as.character(design$long$.acc)
+  pinned <- vapply(split(seq_along(acc), acc), \(rows) {
+    all(design$s$X[rows, , drop = FALSE] == 0)
+  }, TRUE)
+  if (any(pinned)) return(invisible(TRUE))
+  stop("a free `s` (the diffusion constant) is not identified: `s` scales ",
+       "`A`, `b` and `v`, so the scale of the model must be pinned down. Either ",
+       "fix one of A, b and v, e.g. fixed = list(A = 0.5), or leave one ",
+       "accumulator out of the formula of `s`, e.g. ",
+       "s = ~ 0 + acc(.acc != \"red\"), which fixes its value at 1.",
+       call. = FALSE)
 }
 
 #' @export
@@ -369,6 +456,10 @@ print.rdm_design <- function(x, ...) {
       cat("  ", par, ": ", ncol(spec$X), " coefficient(s)",
           if (spec$per_accumulator) ", varying over the accumulators" else "",
           ": ", paste(spec$coef_names, collapse = ", "), "\n", sep = "")
+      if (!is.null(spec$anchor)) {
+        cat("  ", par, ": anchored at 1 for ", spec$anchor$level,
+            " (its coefficient is not estimated)\n", sep = "")
+      }
     }
   }
   invisible(x)
