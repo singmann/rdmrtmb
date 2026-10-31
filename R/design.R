@@ -440,31 +440,73 @@ check_identified <- function(design) {
 }
 
 #' @export
-print.rdm_design <- function(x, ...) {
+print.rdm_design <- function(x, max_unique = 10, ...) {
+  if (!is.numeric(max_unique) || length(max_unique) != 1L || is.na(max_unique) ||
+      max_unique < 1) {
+    stop("`max_unique` must be a positive number.", call. = FALSE)
+  }
+  max_unique <- as.integer(max_unique)
   cat("<rdm_design> ", x$n, " trials, ", x$K, " accumulators (",
       paste(x$response_levels, collapse = ", "), ")\n", sep = "")
   for (par in rdm_pars) {
     spec <- x[[par]]
     if (is.null(spec)) {
-      cat("  ", par, ": not in the model\n", sep = "")
+      cat("\n", par, ": not in the model\n", sep = "")
     } else if (!spec$free) {
+      cat("\n", par, ": ", sep = "")
       if (spec$per_accumulator) {
-        cat("  ", par, ": fixed per accumulator at ",
+        cat("fixed per accumulator at ",
             paste(unique(spec$value), collapse = ", "), "\n", sep = "")
       } else {
-        cat("  ", par, ": fixed at ", unique(spec$value)[1], "\n", sep = "")
+        cat("fixed at ", unique(spec$value)[1], "\n", sep = "")
       }
     } else {
-      cat("  ", par, ": ", ncol(spec$X), " coefficient(s)",
+      cat("\n", par, ": ", ncol(spec$X), " coefficient(s)",
           if (spec$per_accumulator) ", varying over the accumulators" else "",
           ": ", paste(spec$coef_names, collapse = ", "), "\n", sep = "")
+      print_design_rows(x, spec, max_unique)
       if (!is.null(spec$anchor)) {
-        cat("  ", par, ": anchored at 1 for ", spec$anchor$level,
+        cat("  anchored at 1 for ", spec$anchor$level,
             " (its coefficient is not estimated)\n", sep = "")
       }
     }
   }
   invisible(x)
+}
+
+## the unique rows of the model matrix of one parameter, preceded by the
+## variables of its formula, so that the user can see which combination of the
+## data gives which values of the parameter
+print_design_rows <- function(x, spec, max_unique) {
+  X <- spec$X
+  ## the parameter name is already in the header; keep it where dropping it
+  ## would leave two columns with the same name, as for acc() blocks
+  short <- sub("^[^:]+:", "", colnames(X))
+  short[short %in% short[duplicated(short)]] <- colnames(X)[short %in% short[duplicated(short)]]
+  colnames(X) <- short
+  mf <- stats::model.frame(reformulas::nobars(spec$formula), x$long)
+  ## a variable that does not vary adds nothing to the picture, and neither does
+  ## one that has become a column of the model matrix, such as acc(.acc == "x")
+  keep <- vapply(mf, function(v) {
+    if (length(unique(v)) < 2L) return(FALSE)
+    !any(vapply(seq_len(ncol(X)), \(j) identical(as.numeric(v), X[, j]), TRUE))
+  }, TRUE)
+  mf <- mf[keep]
+  mf[] <- lapply(mf, \(v) if (is.logical(v)) as.numeric(v) else v)
+  cols <- as.list(mf)
+  if (spec$per_accumulator && !any(grepl(".acc", names(mf), fixed = TRUE))) {
+    cols <- c(list(acc = x$long$.acc), cols)
+  }
+  tab <- do.call(data.frame, c(cols, list(X), list(check.names = FALSE)))
+  tab <- tab[!duplicated(tab), , drop = FALSE]
+  rownames(tab) <- NULL
+  n_unique <- nrow(tab)
+  print(utils::head(tab, max_unique), row.names = FALSE, digits = 5)
+  if (n_unique > max_unique) {
+    cat("  (", n_unique - max_unique, " more of ", n_unique,
+        " unique rows; raise `max_unique` to show them)\n", sep = "")
+  }
+  invisible(tab)
 }
 
 ## a vector, or the name of a column of `data`

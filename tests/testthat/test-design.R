@@ -256,3 +256,19 @@ test_that("the print method summarises the design", {
   expect_true(any(grepl("b: 2 coefficient", out)))
   expect_true(any(grepl("v: 2 coefficient.*varying over the accumulators", out)))
 })
+
+test_that("the print method shows the unique rows of each model matrix", {
+  d <- rdm_design(example_data, example_data$rt, example_data$resp,
+                  formula = list(A = ~1, b = ~cond, t0 = ~1, v = ~acc(1)))
+  out <- capture.output(print(d))
+  ## the variables of the formula label the rows, next to the coefficients
+  expect_true(any(grepl("cond.*condy", out)))
+  expect_true(any(grepl("acc.*v\\[a\\]:\\(Intercept\\)", out)))
+  ## only the unique rows are printed: two rows for b, not six trials
+  b_rows <- out[seq(grep("b: 2 coefficient", out) + 1L, length.out = 3L)]
+  expect_identical(sum(grepl("^\\s+[xy]\\s", b_rows)), 2L)
+  ## and at most `max_unique` of them
+  out1 <- capture.output(print(d, max_unique = 1))
+  expect_true(any(grepl("more of 2 unique rows", out1)))
+  expect_error(print(d, max_unique = 0), "positive number")
+})
