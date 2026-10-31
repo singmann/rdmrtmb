@@ -43,15 +43,18 @@ rdm_log_f <- function(t, A, b, v) {
 rdm_log_S <- function(t, A, b, v) {
   st <- sqrt(t)
   vt <- v * t
-  eta <- function(x) (x - vt) / st      # z of the first-passage CDF
   zeta <- function(x) (x + vt) / st     # z of the exponential correction
+  # Phi(zeta(k) - 2 v sqrt(t)) is Phi((k - vt)/sqrt(t)), which I1 needs as well
+  eta_b <- (b - vt) / st
+  eta_ba <- (b - A - vt) / st
+  pn_b <- pnorm(eta_b)
+  pn_ba <- pnorm(eta_ba)
   # integral of Phi((k - vt)/sqrt(t)) over the start points k in [b - A, b]
-  I1 <- st * (eta(b) * pnorm(eta(b)) + dnorm(eta(b)) -
-                eta(b - A) * pnorm(eta(b - A)) - dnorm(eta(b - A)))
+  I1 <- st * (eta_b * pn_b + dnorm(eta_b) - eta_ba * pn_ba - dnorm(eta_ba))
   # exp(2vk) * Phi(-zeta(k)) evaluated on the log scale to avoid overflow
   I2 <- (exp(2 * v * b + pnorm(-zeta(b), log.p = TRUE)) -
            exp(2 * v * (b - A) + pnorm(-zeta(b - A), log.p = TRUE))) / (2 * v) +
-    (pnorm(zeta(b) - 2 * v * st) - pnorm(zeta(b - A) - 2 * v * st)) / (2 * v)
+    (pn_b - pn_ba) / (2 * v)
   log((I1 - I2) / A + 1e-300)
 }
 
@@ -78,17 +81,16 @@ rdm_loglik <- function(t, A, b, v, response) {
   t <- as_par_matrix(t, n, K)
   A <- as_par_matrix(A, n, K)
   b <- as_par_matrix(b, n, K)
+  ## the density is only needed for the accumulator that won; computing all the
+  ## survival probabilities and subtracting the winner's is cheaper than
+  ## subsetting the matrix three times
   ## not vapply(): it rejects the representation RTMB uses when taping second
   ## derivatives for the Laplace approximation
-  log_f <- do.call(cbind, lapply(seq_len(K),
-                                 \(j) rdm_log_f(t[, j], A[, j], b[, j], v[, j])))
   log_S <- do.call(cbind, lapply(seq_len(K),
                                  \(j) rdm_log_S(t[, j], A[, j], b[, j], v[, j])))
-  out <- numeric(n)
-  for (j in seq_len(K)) {
-    out <- out + (response == j) * (log_f[, j] + rowSums(log_S[, -j, drop = FALSE]))
-  }
-  out
+  win <- cbind(seq_len(n), response)
+  log_f <- rdm_log_f(t[win], A[win], b[win], v[win])
+  log_f + rowSums(log_S) - log_S[win]
 }
 
 ## parameters that are the same for all accumulators are given as a vector of

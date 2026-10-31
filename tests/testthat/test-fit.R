@@ -45,6 +45,26 @@ test_that("starting values can be supplied and are checked", {
   )
 })
 
+test_that("a fit can be restarted from a previous fit", {
+  dat <- simulate_data(seed = 6)
+  fml <- rdm_formula(A = ~1 + (1 | id), b = ~1, t0 = ~1, v = ~ acc(1))
+  first <- fit_rdm(dat, rt = "rt", response = "response", formula = fml)
+  ## restarting from a converged fit takes a couple of iterations at most
+  again <- fit_rdm(dat, rt = "rt", response = "response", formula = fml,
+                   start = first, sdreport = FALSE)
+  expect_true(again$converged)
+  expect_equal(coef(again), coef(first), tolerance = 1e-4)
+  expect_equal(again$theta, first$theta, tolerance = 1e-4)
+  expect_lt(again$opt$iterations, first$opt$iterations)
+  ## a list with the pieces works too, and wrong lengths are caught
+  expect_silent(fit_rdm(dat, rt = "rt", response = "response", formula = fml,
+                        start = list(beta = first$beta, theta = first$theta),
+                        sdreport = FALSE))
+  expect_error(fit_rdm(dat, rt = "rt", response = "response", formula = fml,
+                       start = list(theta = c(first$theta, 0)), sdreport = FALSE),
+               "values but the model has")
+})
+
 test_that("a model with covariates on the drift rates can be fitted", {
   dat <- simulate_data(seed = 5)
   dat$cond <- factor(rep(c("a", "b", "c"), length.out = nrow(dat)))

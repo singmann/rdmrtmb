@@ -135,6 +135,10 @@ rdm_nll <- function(design, ranef = NULL,
          v = matrix(expand(v0), n, K))
   }
 
+  ## with the diffusion constant fixed at 1 there is nothing to divide by; the
+  ## divisions are cheap in themselves but every operation is taped
+  unit_s <- is.null(design$s) || (!design$s$free && all(design$s$value == 1))
+
   fn <- function(par) {
     mp <- pars_fun(par$beta, par$u)
     t <- design$rt - mp$t0
@@ -142,8 +146,12 @@ rdm_nll <- function(design, ranef = NULL,
     ## barrier keeping the decision time positive
     nll <- barrier * sum(violation(1e3 * t))
     t_use <- sqrt(t^2 + 1e-12)
-    nll <- nll - sum(rdm_loglik(t_use, mp$A / mp$s, mp$b / mp$s, mp$v / mp$s,
-                                design$response))
+    if (unit_s) {
+      nll <- nll - sum(rdm_loglik(t_use, mp$A, mp$b, mp$v, design$response))
+    } else {
+      nll <- nll - sum(rdm_loglik(t_use, mp$A / mp$s, mp$b / mp$s,
+                                  mp$v / mp$s, design$response))
+    }
 
     if (!is.null(prior$beta)) {
       nll <- nll - sum(dnorm(par$beta, 0, prior$beta, log = TRUE))

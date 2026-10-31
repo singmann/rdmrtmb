@@ -67,9 +67,13 @@
 #' @param control List of control arguments passed to [stats::nlminb()].
 #' @param inner.control List of control arguments for the inner optimisation of
 #'   the random effects.
-#' @param start Optional named vector of starting values for the fixed effects,
-#'   on the log scale, e.g. `c("t0:(Intercept)" = log(0.3))`. Names must match
-#'   those of the model coefficients.
+#' @param start Starting values. Either a named vector for the fixed effects, on
+#'   the log scale, e.g. `c("t0:(Intercept)" = log(0.3))`, or a previous
+#'   `rdm_fit`, or a list with elements `beta`, `theta` and `u`. Restarting from
+#'   a previous fit is much faster than fitting from scratch, which matters for
+#'   larger models where every Laplace evaluation costs seconds. Coefficients in
+#'   a vector that the model does not have are an error; coefficients the vector
+#'   leaves out keep their default start.
 #' @param sdreport If `TRUE` (the default), standard errors are computed with
 #'   `RTMB::sdreport()`.
 #' @return An object of class `rdm_fit`, a list with the components
@@ -98,14 +102,7 @@ fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
   ranef <- rdm_ranef(design)
   nll <- rdm_nll(design, ranef, prior = prior, barrier = barrier)
 
-  if (!is.null(start)) {
-    found <- names(start) %in% names(nll$par$beta)
-    if (!all(found)) {
-      stop("unknown name(s) in `start`: ",
-           paste(names(start)[!found], collapse = ", "), ".", call. = FALSE)
-    }
-    nll$par$beta[names(start)] <- start
-  }
+  nll$par <- start_values(start, nll)
 
   obj <- RTMB::MakeADFun(nll$fn, nll$par, random = nll$random, silent = TRUE,
                          inner.control = inner.control)
@@ -170,6 +167,44 @@ fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
     obj = obj,
     prior = prior
   ), class = "rdm_fit")
+}
+
+## starting values from a vector of fixed effects, a previous fit, or a list with
+## elements `beta`, `theta` and `u`
+start_values <- function(start, nll) {
+  par <- nll$par
+  if (is.null(start)) return(par)
+  if (inherits(start, "rdm_fit")) {
+    start <- list(beta = start$beta, theta = start$theta, u = start$u)
+  }
+  if (!is.list(start)) start <- list(beta = start)
+  unknown <- setdiff(names(start), names(par))
+  if (length(unknown)) {
+    stop("unknown element(s) in `start`: ", paste(unknown, collapse = ", "),
+         ".", call. = FALSE)
+  }
+  for (nm in names(start)) {
+    x <- start[[nm]]
+    if (is.null(x) || is.null(par[[nm]])) next
+    named <- !is.null(names(x)) && all(names(x) != "")
+    ## the fixed effects may be given by name, one or a few at a time; the
+    ## covariance parameters and the random effects have to be complete
+    if (named && nm == "beta") {
+      found <- names(x) %in% names(par[[nm]])
+      if (!all(found)) {
+        stop("unknown name(s) in `start$", nm, "`: ",
+             paste(names(x)[!found], collapse = ", "), ".", call. = FALSE)
+      }
+      par[[nm]][names(x)] <- x
+      next
+    }
+    if (length(x) != length(par[[nm]])) {
+      stop("`start$", nm, "` has ", length(x), " values but the model has ",
+           length(par[[nm]]), ".", call. = FALSE)
+    }
+    par[[nm]][] <- x
+  }
+  par
 }
 
 ## nlminb, with a BFGS fallback when it does not converge
