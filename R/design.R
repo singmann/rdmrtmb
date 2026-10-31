@@ -479,26 +479,38 @@ print.rdm_design <- function(x, max_unique = 10, ...) {
 ## data gives which values of the parameter
 print_design_rows <- function(x, spec, max_unique) {
   X <- spec$X
-  ## the parameter name is already in the header; keep it where dropping it
-  ## would leave two columns with the same name, as for acc() blocks
-  short <- sub("^[^:]+:", "", colnames(X))
-  short[short %in% short[duplicated(short)]] <- colnames(X)[short %in% short[duplicated(short)]]
-  colnames(X) <- short
   mf <- stats::model.frame(reformulas::nobars(spec$formula), x$long)
-  ## a variable that does not vary adds nothing to the picture, and neither does
-  ## one that has become a column of the model matrix, such as acc(.acc == "x")
-  keep <- vapply(mf, function(v) {
+  ## variables inside acc() describe the accumulator, so they are kept even when
+  ## they coincide with a column of the model matrix; the others are dropped then
+  in_acc <- grepl("^acc\\(", names(mf)) | grepl(".acc", names(mf), fixed = TRUE)
+  keep <- vapply(seq_along(mf), function(i) {
+    v <- mf[[i]]
     if (length(unique(v)) < 2L) return(FALSE)
+    if (in_acc[i]) return(TRUE)
     !any(vapply(seq_len(ncol(X)), \(j) identical(as.numeric(v), X[, j]), TRUE))
   }, TRUE)
   mf <- mf[keep]
+  in_acc <- in_acc[keep]
+  ## without the wrapper, which the column position already expresses
+  names(mf)[in_acc] <- sub("^acc\\((.*)\\)$", "\\1", names(mf)[in_acc])
   mf[] <- lapply(mf, \(v) if (is.logical(v)) as.numeric(v) else v)
-  cols <- as.list(mf)
+  ## shared variables first, then the ones inside acc(), then the accumulator
+  ## itself, so that the accumulator changes fastest from row to row
+  cols <- c(as.list(mf)[!in_acc], as.list(mf)[in_acc])
   if (spec$per_accumulator && !any(grepl(".acc", names(mf), fixed = TRUE))) {
-    cols <- c(list(acc = x$long$.acc), cols)
+    cols <- c(cols, list(acc = x$long$.acc))
   }
+  ## the parameter name is already in the header; keep it where dropping it
+  ## would leave two columns that look the same, as for acc() blocks
+  short <- sub("^[^:]+:", "", colnames(X))
+  short[short %in% c(short[duplicated(short)], names(mf))] <-
+    colnames(X)[short %in% c(short[duplicated(short)], names(mf))]
+  colnames(X) <- short
   tab <- do.call(data.frame, c(cols, list(X), list(check.names = FALSE)))
   tab <- tab[!duplicated(tab), , drop = FALSE]
+  if (length(cols)) {
+    tab <- tab[do.call(order, unname(as.list(tab[seq_along(cols)]))), , drop = FALSE]
+  }
   rownames(tab) <- NULL
   n_unique <- nrow(tab)
   print(utils::head(tab, max_unique), row.names = FALSE, digits = 5)

@@ -272,3 +272,16 @@ test_that("the print method shows the unique rows of each model matrix", {
   expect_true(any(grepl("more of 2 unique rows", out1)))
   expect_error(print(d, max_unique = 0), "positive number")
 })
+
+test_that("the print method labels acc() terms with their variables", {
+  d <- rdm_design(example_data, example_data$rt, example_data$resp,
+                  formula = list(A = ~1, b = ~ 1 + acc(.acc == "a"), t0 = ~1,
+                                 v = ~ acc(cond)))
+  out <- capture.output(print(d))
+  ## the comparison is a variable of the design, without the acc() wrapper
+  expect_true(any(grepl("\\.acc == \"a\" \\(Intercept\\)", out)))
+  ## and the accumulator comes last, so that it varies fastest
+  expect_true(any(grepl("^\\s+cond\\s+acc\\s+v\\[a\\]", out)))
+  expect_true(any(grepl("^\\s+x\\s+a\\s+1", out)))
+  expect_true(any(grepl("^\\s+x\\s+b\\s+0", out)))
+})
