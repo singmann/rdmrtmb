@@ -40,8 +40,8 @@ acc <- function(x) x
 #'   the accumulators and are coded `1:K`.
 #' @param formula Named list of formulas, one per free parameter. Valid names
 #'   are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`, see the details. Random-effect
-#'   terms such as `(1 | id)` may appear in any of the formulas; they are split
-#'   off here and read by `rdm_ranef()`.
+#'   terms such as `(1 | id)` or `diag(1 + Condition | id)` may appear in any of
+#'   the formulas; they are split off here and read by `rdm_ranef()`.
 #' @param fixed Named list of parameters that are held constant, on their
 #'   natural scale, e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not
 #'   the threshold distance. The value can have length 1 (shared) or `K` (one
@@ -91,6 +91,11 @@ rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
   if (is.null(formula$v) && !"v" %in% names(fixed)) {
     stop("the drift rates `v` need a formula.", call. = FALSE)
   }
+  not_formula <- !vapply(formula, inherits, TRUE, "formula")
+  if (any(not_formula)) {
+    stop("the formula for `", names(formula)[which(not_formula)[1]],
+         "` must be a formula, e.g. ~1.", call. = FALSE)
+  }
 
   ## expand the data to one row per trial and accumulator
   long <- data[rep(seq_len(n), K), , drop = FALSE]
@@ -101,7 +106,7 @@ rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
 
   ## the random-effect terms are the `(term | group)` parts of the formulas;
   ## they are kept on the side, the remaining fixed part builds the model matrix
-  ranef_terms <- lapply(formula, reformulas::findbars)
+  ranef_terms <- lapply(formula, rdm_ranef_terms)
   ranef_terms <- ranef_terms[vapply(ranef_terms, length, 1L) > 0L]
 
   design <- list(n = n, K = K, rt = rt, response = resp_idx,

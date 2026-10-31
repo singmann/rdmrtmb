@@ -6,6 +6,40 @@
 # `(1 | id) + (0 + cond | id)` gives independent effects while `(1 + cond | id)`
 # gives correlated ones. Several grouping factors may be combined in one
 # formula, which allows crossed random effects.
+#
+# Wrapping a term in `diag()` gives a diagonal covariance matrix, that is one
+# variance per column of the term and no correlations, as in glmmTMB. This is
+# the only way to get independent effects for a factor, because `(0 + f | id)`
+# still estimates a covariance between the levels of `f`.
+
+## The random-effect terms of one parameter formula, each with its covariance
+## structure (`"us"` for unstructured, `"diag"` for diagonal).
+rdm_ranef_terms <- function(form) {
+  env <- environment(form)
+  if (is.null(env)) env <- parent.frame()
+  labels <- attr(stats::terms(form), "term.labels")
+  out <- list()
+  for (label in labels) {
+    if (!grepl("|", label, fixed = TRUE)) next
+    expr <- str2lang(label)
+    struct <- "us"
+    if (!as.character(expr[[1]]) %in% c("|", "||")) {
+      name <- as.character(expr[[1]])
+      if (!identical(name, "diag") || !is.call(expr[[2]])) {
+        stop("unsupported covariance structure `", name, "()` in the term `",
+             label, "`. Only `(term | group)` and `diag(term | group)` are ",
+             "supported.", call. = FALSE)
+      }
+      struct <- "diag"
+      expr <- expr[[2]]
+    }
+    ## findbars() expands double bars into independent single-bar terms
+    for (bar in reformulas::findbars(eval(call("~", expr), env))) {
+      out[[length(out) + 1L]] <- list(term = bar, struct = struct)
+    }
+  }
+  out
+}
 
 #' Parse the random-effects terms of an RDM model
 #'
@@ -34,7 +68,8 @@ rdm_ranef <- function(design) {
     ## the design matrices live on the expanded data, so the random effects are
     ## evaluated there as well
     for (term in terms[[par]]) {
-      blocks[[length(blocks) + 1L]] <- ranef_block(term, design$long, par)
+      blocks[[length(blocks) + 1L]] <- ranef_block(term$term, design$long, par,
+                                                   term$struct)
     }
   }
 
@@ -43,7 +78,7 @@ rdm_ranef <- function(design) {
 }
 
 ## one `(expr | group)` term
-ranef_block <- function(term, data, par) {
+ranef_block <- function(term, data, par, struct = "us") {
   if (!identical(as.character(term[[1]]), "|")) {
     stop("only single-bar terms such as (1 | id) are supported.", call. = FALSE)
   }
@@ -76,8 +111,11 @@ ranef_block <- function(term, data, par) {
   }
   ## a term with only an intercept column is stored as a single column of ones
   q <- ncol(Z)
+  diagonal <- identical(struct, "diag")
   list(par = par,
-       label = paste0(par, ":(", deparse1(term), ")"),
+       label = if (diagonal) paste0(par, ":(diag(", deparse1(term), "))")
+               else paste0(par, ":(", deparse1(term), ")"),
+       struct = struct,
        Z = matrix(as.numeric(Z), nrow = nrow(Z), ncol = ncol(Z)),
        col_names = colnames(Z),
        group = group_idx,
@@ -86,8 +124,8 @@ ranef_block <- function(term, data, par) {
        n_lev = length(levels),
        n_row = nrow(Z),
        q = q,
-       n_theta = as.integer(q * (q + 1L) / 2L),
-       correlated = q > 1L)
+       n_theta = if (diagonal) as.integer(q) else as.integer(q * (q + 1L) / 2L),
+       correlated = q > 1L && !diagonal)
 }
 
 ## Position of every element of a q x q matrix in the vector of lower-triangular
@@ -105,8 +143,11 @@ lower_map <- function(q) {
 ## unconstrained parameters theta. Assignment into a numeric matrix would drop
 ## the automatic-differentiation class, so the factor is assembled from a
 ## constant index map instead.
-rdm_chol <- function(theta, q) {
+rdm_chol <- function(theta, q, struct = "us") {
   if (q == 1L) return(matrix(exp(theta[1]), 1, 1))
+  ## a diagonal covariance matrix: one standard deviation per column and no
+  ## off-diagonal elements, so there is nothing to fill in
+  if (identical(struct, "diag")) return(diag(q) * exp(theta[seq_len(q)]))
   mask <- lower.tri(diag(q))
   unit <- matrix(theta[lower_map(q)], q, q) * mask + diag(q)
   ## scaling the rows by the standard deviations gives L with diag(L) = sd
@@ -140,7 +181,7 @@ rdm_ranef_contrib <- function(block, u) {
 ## normalising constant
 rdm_ranef_penalty <- function(block, u, theta) {
   q <- block$q
-  L <- rdm_chol(theta, q)
+  L <- rdm_chol(theta, q, block$struct)
   Z <- tri_solve(L, matrix(u, block$n_lev, q))
   0.5 * sum(Z^2) + block$n_lev * sum(theta[seq_len(q)]) +
     block$n_lev * q / 2 * log(2 * pi)
@@ -156,7 +197,8 @@ print.rdm_ranef <- function(x, ...) {
       " covariance parameter(s)\n", sep = "")
   for (b in x$blocks) {
     cat("  ", b$label, ": ", b$n_lev, " levels, ", b$q, " effect(s)",
-        if (b$correlated) ", correlated" else "", "\n", sep = "")
+        if (identical(b$struct, "diag")) ", diagonal"
+        else if (b$correlated) ", correlated" else "", "\n", sep = "")
   }
   invisible(x)
 }

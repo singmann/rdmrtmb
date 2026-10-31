@@ -80,6 +80,42 @@ test_that("double bars give independent blocks", {
   expect_identical(correlated$npar, 3L)
 })
 
+test_that("diag() gives a diagonal covariance matrix", {
+  ## a factor gets one variance per level and no correlations
+  r <- rdm_ranef(design_re(A = ~1 + diag(0 + cond | id), v = ~1))
+  b <- r$blocks[[1]]
+  expect_identical(b$q, 2L)
+  expect_identical(b$n_theta, 2L)
+  expect_false(b$correlated)
+  expect_identical(b$struct, "diag")
+  expect_identical(b$label, "A:(diag(0 + cond | id))")
+
+  ## the correlated version needs one parameter more
+  expect_identical(rdm_ranef(design_re(A = ~1 + (0 + cond | id), v = ~1))$npar, 3L)
+
+  ## diag() can be combined with other terms
+  r <- rdm_ranef(design_re(A = ~1 + (1 | id) + diag(1 + cond | item), v = ~1))
+  expect_identical(length(r$blocks), 2L)
+  expect_identical(vapply(r$blocks, \(b) b$n_theta, 1L), c(1L, 2L))
+  expect_identical(r$npar, 3L)
+
+  ## double bars work inside diag() as well
+  r <- rdm_ranef(design_re(A = ~1 + diag(1 + cond || id), v = ~1))
+  expect_identical(length(r$blocks), 2L)
+  expect_true(all(vapply(r$blocks, \(b) b$struct, "") == "diag"))
+})
+
+test_that("the diag structure is part of the fixed part of the formula", {
+  ## nobars() drops the whole term, wrapper included
+  d <- design_re(A = ~1 + diag(0 + cond | id), v = ~1)
+  expect_identical(colnames(d$A$X), "A:(Intercept)")
+})
+
+test_that("unknown covariance structures are rejected", {
+  expect_error(rdm_ranef(design_re(A = ~1 + us(1 + cond | id), v = ~1)),
+               "unsupported covariance structure")
+})
+
 test_that("random-effect contributions are the sum of the block terms", {
   r <- rdm_ranef(design_re(A = ~1 + (1 | id) + (0 + cond | item), v = ~1))
   u1 <- matrix(c(-1, 0, 1, 2), ncol = 1)
@@ -95,6 +131,9 @@ test_that("random-effect contributions are the sum of the block terms", {
 test_that("the Cholesky factorisation is correct", {
   ## theta holds the log standard deviations first, then the off-diagonals
   expect_equal(rdm_chol(log(2), 1), matrix(2))
+  ## the diagonal structure has no off-diagonal elements
+  expect_equal(rdm_chol(c(log(2), log(0.5)), 2, "diag"),
+               diag(c(2, 0.5)))
   L <- rdm_chol(c(log(2), log(0.5), 0.3), 2)
   expect_equal(L, matrix(c(2, 0.15, 0, 0.5), 2))
   expect_equal(diag(rdm_chol(c(log(2), log(0.5), 0.3, 0.1, 0.2, -0.3), 3)),
@@ -123,6 +162,14 @@ test_that("the random-effect penalty is a multivariate normal density", {
   expect_equal(rdm_ranef_penalty(block, u, theta), manual)
 })
 
+test_that("the diag penalty is a row of independent normal densities", {
+  block <- list(q = 2L, n_lev = 4L, struct = "diag")
+  theta <- c(log(0.8), log(0.5))
+  u <- matrix(c(-1, 2, 0.5, -0.5, 1, -1.5, 0, 1), ncol = 2)
+  manual <- -sum(stats::dnorm(u, 0, rep(exp(theta), each = 4), log = TRUE))
+  expect_equal(rdm_ranef_penalty(block, u, theta), manual)
+})
+
 test_that("random effects are validated", {
   ## the grouping variable has to be in the data
   expect_error(rdm_ranef(design_re(A = ~1 + (1 | nope), v = ~1)), "not found")
@@ -140,6 +187,8 @@ test_that("the print method summarises the random effects", {
                                                 v = ~1))))
   expect_true(any(grepl("1 term", out)))
   expect_true(any(grepl("correlated", out)))
+  expect_true(any(grepl("diagonal", capture.output(
+    print(rdm_ranef(design_re(A = ~1 + diag(0 + cond | id), v = ~1)))))))
   expect_true(any(grepl("no random effects",
                         capture.output(print(rdm_ranef(design))))))
 })

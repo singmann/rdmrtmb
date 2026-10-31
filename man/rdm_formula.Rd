@@ -23,7 +23,9 @@ Collects one formula per model parameter and is the \code{formula} argument of
 \item the fixed effects, which may contain \code{\link[=acc]{acc()}} terms, e.g.
 \code{v = ~ Condition + acc(.acc == Word)};
 \item the random effects, written in the lme4 style (as in brms), e.g.
-\code{(1 | id)}, \code{(1 + Condition | id)} or \code{(1 | id) + (1 | item)}.
+\code{(1 | id)}, \code{(1 + Condition | id)} or \code{(1 | id) + (1 | item)};
+\item a term wrapped in \code{diag()} has a diagonal covariance matrix, that is
+independent variances and no correlations, as in glmmTMB. \code{diag(0 + Word | id)} estimates one variance per level of a factor, where \code{(0 + Word | id)} would estimate a covariance between the levels.
 }
 
 A parameter that is left out takes its default: no start-point variability

@@ -337,7 +337,7 @@ rdm_varcov <- function(object) {
     th <- object$theta[ti]
     q <- blk$q
     Vb <- V[nb + ti, nb + ti, drop = FALSE]
-    C <- rdm_chol(th, q)
+    C <- rdm_chol(th, q, blk$struct)
     C <- C %*% t(C)
     sds <- sqrt(diag(C))
     rows <- data.frame(
@@ -347,12 +347,13 @@ rdm_varcov <- function(object) {
       se = sds * sqrt(diag(Vb)[seq_len(q)]),
       stringsAsFactors = FALSE
     )
-    if (q > 1L) {
+    ## a diagonal covariance matrix has no correlations to report
+    if (q > 1L && !identical(blk$struct, "diag")) {
       extra <- list()
       for (i in 2:q) {
         for (j in seq_len(i - 1L)) {
           cor_fun <- function(x) {
-            L <- rdm_chol(x, q)
+            L <- rdm_chol(x, q, blk$struct)
             Cx <- L %*% t(L)
             Cx[i, j] / sqrt(Cx[i, i] * Cx[j, j])
           }

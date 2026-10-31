@@ -33,8 +33,9 @@
 #'   `acc()` are estimated separately for each accumulator, and `acc()` terms
 #'   that refer to the accumulator `.acc` compare it with a trial variable, e.g.
 #'   `v = ~ Condition + acc(.acc == Word)`. Random effects are written inside
-#'   the formulas as in lme4, e.g. `A = ~ 1 + (1 | id)`. See [acc()] and
-#'   [rdm_formula()].
+#'   the formulas as in lme4, e.g. `A = ~ 1 + (1 | id)`, and `diag(...)` gives
+#'   a diagonal covariance matrix, e.g. `v = ~ acc(1) + diag(0 + Condition |
+#'   id)`. See [acc()] and [rdm_formula()].
 #' @param fixed Named list of parameters held constant on their natural scale,
 #'   e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not the distance.
 #'   The value can have length 1 (shared) or one value per accumulator.
