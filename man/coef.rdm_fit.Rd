@@ -5,17 +5,21 @@
 \alias{fixef.rdm_fit}
 \title{Coefficients of a fitted RDM}
 \usage{
-\method{coef}{rdm_fit}(object, type = c("link", "response"), full = FALSE, ...)
+\method{coef}{rdm_fit}(object, type = c("link", "ratio"), full = FALSE, ...)
 
-\method{fixef}{rdm_fit}(object, type = c("link", "response"), ...)
+\method{fixef}{rdm_fit}(object, type = c("link", "ratio"), ...)
 }
 \arguments{
 \item{object}{An \code{rdm_fit} object.}
 
-\item{type}{\code{"link"} (default) for the coefficients as estimated, \code{"response"}
-for the back-transformed values. All parameters enter the model through a
-log link, so the transformation is \code{exp()}. For the threshold \code{b} the
-result is the distance between the threshold and \code{A}, not \code{b} itself.}
+\item{type}{\code{"link"} (default) for the coefficients as estimated, \code{"ratio"}
+for \code{exp()} of each coefficient. All parameters enter the model through a
+log link, so the latter is a multiplicative effect rather than the
+parameter: it is the factor by which the parameter changes for a one-unit
+change in its covariate, and it equals an actual parameter only where all
+of that parameter's other covariates are zero. Use \code{\link[=fitted.rdm_fit]{fitted.rdm_fit()}} for
+the trial-level parameters. For the threshold \code{b} the ratio refers to the
+distance between the threshold and \code{A}.}
 
 \item{full}{If \code{TRUE}, the covariance parameters of the random effects are
 appended.}

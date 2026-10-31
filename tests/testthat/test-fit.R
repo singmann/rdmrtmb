@@ -87,7 +87,7 @@ test_that("thresholds can differ between accumulators", {
   f <- fit_rdm(dat, rt = "rt", response = "response",
                formula = list(A = ~1, t0 = ~1, b = ~ acc(1),
                               v = ~ acc(1)))
-  ce <- coef(f, type = "response")
+  ce <- coef(f, type = "ratio")
   ## the lower threshold wins more often; the coefficients of `b` are the
   ## distance between the threshold and the start point, so they are b - A
   expect_gt(mean(dat$response == 2), 0.5)

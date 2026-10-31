@@ -2,7 +2,7 @@ test_that("coef() reports the coefficients on either scale", {
   f <- plain_fit()
   link <- coef(f)
   expect_equal(link, f$beta)
-  expect_equal(coef(f, type = "response"), exp(f$beta))
+  expect_equal(coef(f, type = "ratio"), exp(f$beta))
   full <- coef(f, full = TRUE)
   expect_length(full, length(f$beta) + length(f$theta))
   expect_equal(fixef(f), link)
@@ -31,8 +31,8 @@ test_that("vcov() and confint() agree with the standard errors", {
                  stats::qnorm(0.95) * sqrt(V["A:(Intercept)", "A:(Intercept)"]),
                ignore_attr = TRUE)
 
-  resp <- confint(f, type = "response")
-  expect_equal(resp, exp(ci), ignore_attr = TRUE)
+  ratio <- confint(f, type = "ratio")
+  expect_equal(ratio, exp(ci), ignore_attr = TRUE)
   expect_error(confint(f, parm = "nope"), "unknown coefficient")
 })
 
@@ -55,7 +55,7 @@ test_that("ranef() returns the conditional modes in long format", {
   expect_named(re, c("term", "group", "effect", "estimate"))
   expect_equal(nrow(re), 2L * 5L)
   expect_setequal(unique(re$term), c("A:(1 | id)", "t0:(1 | id)"))
-  expect_equal(ranef(f, type = "response")$estimate, exp(re$estimate))
+  expect_equal(ranef(f, type = "ratio")$estimate, exp(re$estimate))
   expect_null(ranef(plain_fit()))
 })
 

@@ -14,8 +14,9 @@
 #' returned by [coef()] are on the log scale. The threshold is parameterised as
 #' `b = A + exp(eta)`, which guarantees `b > A`; its coefficients therefore
 #' describe the log distance between the threshold and the upper bound of the
-#' start point. Use `coef(fit, type = "response")` for the back-transformed
-#' values.
+#' start point. Use `coef(fit, type = "ratio")` for the exponentiated
+#' coefficients, which are multiplicative effects rather than the parameters,
+#' and [fitted.rdm_fit()] for the trial-level parameters themselves.
 #'
 #' A term inside `acc()` is estimated separately for each accumulator, so
 #' `b = ~ acc(1)` gives one threshold distance per accumulator (a response

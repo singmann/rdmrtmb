@@ -3,20 +3,24 @@
 #' Coefficients of a fitted RDM
 #'
 #' @param object An `rdm_fit` object.
-#' @param type `"link"` (default) for the coefficients as estimated, `"response"`
-#'   for the back-transformed values. All parameters enter the model through a
-#'   log link, so the transformation is `exp()`. For the threshold `b` the
-#'   result is the distance between the threshold and `A`, not `b` itself.
+#' @param type `"link"` (default) for the coefficients as estimated, `"ratio"`
+#'   for `exp()` of each coefficient. All parameters enter the model through a
+#'   log link, so the latter is a multiplicative effect rather than the
+#'   parameter: it is the factor by which the parameter changes for a one-unit
+#'   change in its covariate, and it equals an actual parameter only where all
+#'   of that parameter's other covariates are zero. Use [fitted.rdm_fit()] for
+#'   the trial-level parameters. For the threshold `b` the ratio refers to the
+#'   distance between the threshold and `A`.
 #' @param full If `TRUE`, the covariance parameters of the random effects are
 #'   appended.
 #' @param ... Unused.
 #' @export
-coef.rdm_fit <- function(object, type = c("link", "response"), full = FALSE,
+coef.rdm_fit <- function(object, type = c("link", "ratio"), full = FALSE,
                          ...) {
   type <- match.arg(type)
   out <- object$beta
   if (full && length(object$theta)) out <- c(out, object$theta)
-  if (type == "response") out <- exp(out)
+  if (type == "ratio") out <- exp(out)
   out
 }
 
@@ -31,7 +35,7 @@ fixef <- function(object, ...) UseMethod("fixef")
 
 #' @rdname coef.rdm_fit
 #' @export
-fixef.rdm_fit <- function(object, type = c("link", "response"), ...) {
+fixef.rdm_fit <- function(object, type = c("link", "ratio"), ...) {
   coef.rdm_fit(object, type = match.arg(type), full = FALSE)
 }
 
@@ -67,13 +71,13 @@ vcov.rdm_fit <- function(object, full = FALSE, ...) {
 #' @param parm Names or indices of the coefficients; defaults to all of them.
 #' @param level Confidence level.
 #' @param type `"link"` (default) for intervals on the scale of the
-#'   coefficients, `"response"` for intervals on the natural scale, obtained by
-#'   exponentiating the limits. For `b` the interval refers to the distance
-#'   between the threshold and `A`.
+#'   coefficients, `"ratio"` for intervals on the multiplicative scale, obtained
+#'   by exponentiating the limits (see [coef.rdm_fit()]). For `b` the interval
+#'   refers to the distance between the threshold and `A`.
 #' @param ... Unused.
 #' @export
 confint.rdm_fit <- function(object, parm, level = 0.95,
-                            type = c("link", "response"), ...) {
+                            type = c("link", "ratio"), ...) {
   type <- match.arg(type)
   est <- object$beta
   se <- sqrt(diag(vcov(object)))
@@ -89,7 +93,7 @@ confint.rdm_fit <- function(object, parm, level = 0.95,
   }
   z <- stats::qnorm(1 - (1 - level) / 2)
   out <- cbind(est[parm] - z * se[parm], est[parm] + z * se[parm])
-  if (type == "response") out <- exp(out)
+  if (type == "ratio") out <- exp(out)
   a <- (1 - level) / 2
   dimnames(out) <- list(names(est)[parm],
                         paste(format(100 * c(a, 1 - a), trim = TRUE), "%"))
@@ -110,16 +114,18 @@ ranef <- function(object, ...) UseMethod("ranef")
 #' Conditional modes of the random effects, that is the estimates of the
 #' deviations of each level from the population value. They are on the scale of
 #' the linear predictor, so they are added to the fixed effects to obtain the
-#' level-specific coefficients; `type = "response"` exponentiates them, which
-#' turns them into multiplicative factors.
+#' level-specific coefficients; `type = "ratio"` exponentiates them, which
+#' turns them into the factors relating each level's parameter to the
+#' population value, not into parameter values themselves. Use [fitted.rdm_fit()]
+#' for the trial-level parameters.
 #'
 #' @param object An `rdm_fit` object.
-#' @param type `"link"` (default) or `"response"`.
+#' @param type `"link"` (default) or `"ratio"`.
 #' @param ... Unused.
 #' @return A data frame with the columns `term`, `group`, `effect` and
 #'   `estimate`, or `NULL` for a model without random effects.
 #' @export
-ranef.rdm_fit <- function(object, type = c("link", "response"), ...) {
+ranef.rdm_fit <- function(object, type = c("link", "ratio"), ...) {
   type <- match.arg(type)
   blocks <- object$ranef$blocks
   if (!length(blocks)) return(NULL)
@@ -128,7 +134,7 @@ ranef.rdm_fit <- function(object, type = c("link", "response"), ...) {
     blk <- blocks[[b]]
     u <- object$u[object$nll$index$u[[b]]]
     U <- matrix(u, blk$n_lev, blk$q)
-    if (type == "response") U <- exp(U)
+    if (type == "ratio") U <- exp(U)
     out[[b]] <- data.frame(
       term = blk$label,
       group = rep(blk$levels, times = blk$q),

@@ -4,12 +4,12 @@
 \alias{ranef.rdm_fit}
 \title{Random effects of a fitted RDM}
 \usage{
-\method{ranef}{rdm_fit}(object, type = c("link", "response"), ...)
+\method{ranef}{rdm_fit}(object, type = c("link", "ratio"), ...)
 }
 \arguments{
 \item{object}{An \code{rdm_fit} object.}
 
-\item{type}{\code{"link"} (default) or \code{"response"}.}
+\item{type}{\code{"link"} (default) or \code{"ratio"}.}
 
 \item{...}{Unused.}
 }
@@ -21,6 +21,8 @@ A data frame with the columns \code{term}, \code{group}, \code{effect} and
 Conditional modes of the random effects, that is the estimates of the
 deviations of each level from the population value. They are on the scale of
 the linear predictor, so they are added to the fixed effects to obtain the
-level-specific coefficients; \code{type = "response"} exponentiates them, which
-turns them into multiplicative factors.
+level-specific coefficients; \code{type = "ratio"} exponentiates them, which
+turns them into the factors relating each level's parameter to the
+population value, not into parameter values themselves. Use \code{\link[=fitted.rdm_fit]{fitted.rdm_fit()}}
+for the trial-level parameters.
 }

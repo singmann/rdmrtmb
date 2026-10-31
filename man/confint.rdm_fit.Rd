@@ -4,7 +4,7 @@
 \alias{confint.rdm_fit}
 \title{Wald confidence intervals for a fitted RDM}
 \usage{
-\method{confint}{rdm_fit}(object, parm, level = 0.95, type = c("link", "response"), ...)
+\method{confint}{rdm_fit}(object, parm, level = 0.95, type = c("link", "ratio"), ...)
 }
 \arguments{
 \item{object}{An \code{rdm_fit} object.}
@@ -14,9 +14,9 @@
 \item{level}{Confidence level.}
 
 \item{type}{\code{"link"} (default) for intervals on the scale of the
-coefficients, \code{"response"} for intervals on the natural scale, obtained by
-exponentiating the limits. For \code{b} the interval refers to the distance
-between the threshold and \code{A}.}
+coefficients, \code{"ratio"} for intervals on the multiplicative scale, obtained
+by exponentiating the limits (see \code{\link[=coef.rdm_fit]{coef.rdm_fit()}}). For \code{b} the interval
+refers to the distance between the threshold and \code{A}.}
 
 \item{...}{Unused.}
 }

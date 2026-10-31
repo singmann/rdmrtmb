@@ -105,8 +105,9 @@ All free parameters enter the model through a log link, so the coefficients
 returned by \code{\link[=coef]{coef()}} are on the log scale. The threshold is parameterised as
 \code{b = A + exp(eta)}, which guarantees \code{b > A}; its coefficients therefore
 describe the log distance between the threshold and the upper bound of the
-start point. Use \code{coef(fit, type = "response")} for the back-transformed
-values.
+start point. Use \code{coef(fit, type = "ratio")} for the exponentiated
+coefficients, which are multiplicative effects rather than the parameters,
+and \code{\link[=fitted.rdm_fit]{fitted.rdm_fit()}} for the trial-level parameters themselves.
 
 A term inside \code{acc()} is estimated separately for each accumulator, so
 \code{b = ~ acc(1)} gives one threshold distance per accumulator (a response
