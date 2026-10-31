@@ -7,13 +7,38 @@
 # gives correlated ones. Several grouping factors may be combined in one
 # formula, which allows crossed random effects.
 #
-# Wrapping a term in `diag()` gives a diagonal covariance matrix, that is one
-# variance per column of the term and no correlations, as in glmmTMB. This is
-# the only way to get independent effects for a factor, because `(0 + f | id)`
-# still estimates a covariance between the levels of `f`.
+# The covariance structure is chosen by wrapping the term in a function, as in
+# glmmTMB:
+#
+#   * `us` (the default, written as a plain term) estimates all variances and
+#     correlations;
+#   * `diag` gives one variance per column of the term and no correlations,
+#     which is the only way to get independent effects for a factor, because
+#     `(0 + f | id)` still estimates a covariance between the levels of `f`;
+#   * `homdiag` gives a single variance that is shared by all columns;
+#   * `cs` (compound symmetry) gives a single variance and a single correlation
+#     between any two columns.
+
+## the covariance structures a term can have, by the name of the wrapper
+rdm_structs <- c(us = "us", diag = "diag", homdiag = "homdiag", cs = "cs")
+
+## number of covariance parameters of a block with `q` columns
+rdm_n_theta <- function(q, struct = "us") {
+  if (identical(struct, "homdiag")) return(1L)
+  if (identical(struct, "cs")) return(if (q > 1L) 2L else 1L)
+  if (identical(struct, "diag")) return(as.integer(q))
+  as.integer(q * (q + 1L) / 2L)
+}
+
+## positions in the parameter vector of a block that are log standard
+## deviations; the remaining ones are correlations
+rdm_sd_index <- function(q, struct = "us") {
+  if (identical(struct, "homdiag") || identical(struct, "cs")) return(1L)
+  seq_len(q)
+}
 
 ## The random-effect terms of one parameter formula, each with its covariance
-## structure (`"us"` for unstructured, `"diag"` for diagonal).
+## structure.
 rdm_ranef_terms <- function(form) {
   env <- environment(form)
   if (is.null(env)) env <- parent.frame()
@@ -25,12 +50,13 @@ rdm_ranef_terms <- function(form) {
     struct <- "us"
     if (!as.character(expr[[1]]) %in% c("|", "||")) {
       name <- as.character(expr[[1]])
-      if (!identical(name, "diag") || !is.call(expr[[2]])) {
+      if (!name %in% names(rdm_structs)[-1] || !is.call(expr[[2]])) {
         stop("unsupported covariance structure `", name, "()` in the term `",
-             label, "`. Only `(term | group)` and `diag(term | group)` are ",
-             "supported.", call. = FALSE)
+             label, "`. Supported are `(term | group)` and the wrappers ",
+             paste0("`", names(rdm_structs)[-1], "(term | group)`",
+                    collapse = ", "), ".", call. = FALSE)
       }
-      struct <- "diag"
+      struct <- rdm_structs[[name]]
       expr <- expr[[2]]
     }
     ## findbars() expands double bars into independent single-bar terms
@@ -111,9 +137,9 @@ ranef_block <- function(term, data, par, struct = "us") {
   }
   ## a term with only an intercept column is stored as a single column of ones
   q <- ncol(Z)
-  diagonal <- identical(struct, "diag")
+  wrapped <- !identical(struct, "us")
   list(par = par,
-       label = if (diagonal) paste0(par, ":(diag(", deparse1(term), "))")
+       label = if (wrapped) paste0(par, ":(", struct, "(", deparse1(term), "))")
                else paste0(par, ":(", deparse1(term), ")"),
        struct = struct,
        Z = matrix(as.numeric(Z), nrow = nrow(Z), ncol = ncol(Z)),
@@ -124,8 +150,8 @@ ranef_block <- function(term, data, par, struct = "us") {
        n_lev = length(levels),
        n_row = nrow(Z),
        q = q,
-       n_theta = if (diagonal) as.integer(q) else as.integer(q * (q + 1L) / 2L),
-       correlated = q > 1L && !diagonal)
+       n_theta = rdm_n_theta(q, struct),
+       correlated = q > 1L && identical(struct, "us"))
 }
 
 ## Position of every element of a q x q matrix in the vector of lower-triangular
@@ -144,6 +170,26 @@ lower_map <- function(q) {
 ## the automatic-differentiation class, so the factor is assembled from a
 ## constant index map instead.
 rdm_chol <- function(theta, q, struct = "us") {
+  ## one variance shared by all columns
+  if (identical(struct, "homdiag")) return(diag(q) * exp(theta[1]))
+  ## compound symmetry: the Cholesky factor of (1 - rho) I + rho J is lower
+  ## triangular with equal elements below the diagonal of every column, so it
+  ## can be assembled from the constant masks below
+  if (identical(struct, "cs") && q > 1L) {
+    sigma <- exp(theta[1])
+    a <- 1
+    b <- cs_rho(theta[2], q)
+    L <- matrix(0, q, q)
+    for (k in seq_len(q)) {
+      dk <- sqrt(a)
+      L <- L + basis_diag(q, k) * (sigma * dk)
+      if (k < q) L <- L + basis_lower(q, k) * (sigma * b / dk)
+      a0 <- a
+      a <- a0 - b^2 / a0
+      b <- b - b^2 / a0
+    }
+    return(L)
+  }
   if (q == 1L) return(matrix(exp(theta[1]), 1, 1))
   ## a diagonal covariance matrix: one standard deviation per column and no
   ## off-diagonal elements, so there is nothing to fill in
@@ -152,6 +198,53 @@ rdm_chol <- function(theta, q, struct = "us") {
   unit <- matrix(theta[lower_map(q)], q, q) * mask + diag(q)
   ## scaling the rows by the standard deviations gives L with diag(L) = sd
   unit * exp(theta[seq_len(q)])
+}
+
+## Map an unconstrained parameter to the correlation of a compound-symmetric
+## covariance matrix with `q` columns. The matrix is positive definite exactly
+## for rho in (-1/(q-1), 1), so the map covers that interval and theta = 0
+## gives a correlation of zero. The boundary is at theta = -Inf, which lets the
+## prior on theta keep the correlation away from the singular matrix.
+cs_rho <- function(theta, q) {
+  lower <- -1 / (q - 1)
+  span <- 1 - lower
+  ## the logistic link is written out because RTMB differentiates exp() but not
+  ## stats::plogis()
+  lower + span / (1 + exp(-(theta + stats::qlogis(-lower / span))))
+}
+
+## the inverse of cs_rho(), used for starting values
+cs_theta <- function(rho, q) {
+  lower <- -1 / (q - 1)
+  span <- 1 - lower
+  stats::qlogis((rho - lower) / span) - stats::qlogis(-lower / span)
+}
+
+## constant masks used to assemble the Cholesky factor of a compound-symmetric
+## covariance matrix: the k-th diagonal position and the k-th column below it
+basis_diag <- function(q, k) {
+  m <- matrix(0, q, q)
+  m[k, k] <- 1
+  m
+}
+
+basis_lower <- function(q, k) {
+  m <- matrix(0, q, q)
+  if (k < q) m[(k + 1L):q, k] <- 1
+  m
+}
+
+## the log determinant of the covariance matrix of a block, which is twice the
+## sum of the logs of the diagonal of its Cholesky factor
+rdm_chol_logdet <- function(theta, q, struct = "us") {
+  if (identical(struct, "homdiag")) return(q * theta[1])
+  if (identical(struct, "cs")) {
+    if (q == 1L) return(theta[1])
+    rho <- cs_rho(theta[2], q)
+    return(q * theta[1] +
+             0.5 * ((q - 1) * log1p(-rho) + log1p((q - 1) * rho)))
+  }
+  sum(theta[seq_len(q)])
 }
 
 ## Solve L Z = U for a lower triangular L, vectorised over the rows of U.
@@ -183,7 +276,7 @@ rdm_ranef_penalty <- function(block, u, theta) {
   q <- block$q
   L <- rdm_chol(theta, q, block$struct)
   Z <- tri_solve(L, matrix(u, block$n_lev, q))
-  0.5 * sum(Z^2) + block$n_lev * sum(theta[seq_len(q)]) +
+  0.5 * sum(Z^2) + block$n_lev * rdm_chol_logdet(theta, q, block$struct) +
     block$n_lev * q / 2 * log(2 * pi)
 }
 
@@ -197,7 +290,7 @@ print.rdm_ranef <- function(x, ...) {
       " covariance parameter(s)\n", sep = "")
   for (b in x$blocks) {
     cat("  ", b$label, ": ", b$n_lev, " levels, ", b$q, " effect(s)",
-        if (identical(b$struct, "diag")) ", diagonal"
+        if (!identical(b$struct, "us")) paste0(", ", b$struct)
         else if (b$correlated) ", correlated" else "", "\n", sep = "")
   }
   invisible(x)

@@ -10,10 +10,15 @@
 #'   `v = ~ Condition + acc(.acc == Word)`;
 #' * the random effects, written in the lme4 style (as in brms), e.g.
 #'   `(1 | id)`, `(1 + Condition | id)` or `(1 | id) + (1 | item)`;
-#' * a term wrapped in `diag()` has a diagonal covariance matrix, that is
-#'   independent variances and no correlations, as in glmmTMB. `diag(0 + Word
-#'   | id)` estimates one variance per level of a factor, where `(0 + Word |
-#'   id)` would estimate a covariance between the levels.
+#' * a term can be wrapped in a covariance structure, as in glmmTMB:
+#'   `diag()` gives one variance per column and no correlations, `homdiag()`
+#'   gives a single variance shared by all columns, and `cs()` (compound
+#'   symmetry) gives a single variance and a single correlation between any two
+#'   columns. For example, `diag(0 + Word | id)` estimates one variance per
+#'   level of a factor, where `(0 + Word | id)` would estimate a covariance
+#'   between the levels. The correlation of a `cs()` term is constrained to the
+#'   values that keep the covariance matrix positive definite and is held away
+#'   from the singular boundary by the prior on the covariance parameters.
 #'
 #' A parameter that is left out takes its default: no start-point variability
 #' (`A = 0`), a threshold one unit above the start point (`b = A + 1`) and no
@@ -70,7 +75,7 @@ print.rdm_formula <- function(x, ...) {
     if (length(terms)) {
       shown <- vapply(terms, function(t) {
         bar <- paste0("(", deparse1(t$term), ")")
-        if (identical(t$struct, "diag")) paste0("diag", bar) else bar
+        if (identical(t$struct, "us")) bar else paste0(t$struct, bar)
       }, "")
       cat(" + ", paste(shown, collapse = " + "), sep = "")
     }

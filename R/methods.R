@@ -344,11 +344,11 @@ rdm_varcov <- function(object) {
       term = blk$label,
       parameter = paste0("sd(", blk$col_names, ")"),
       estimate = sds,
-      se = sds * sqrt(diag(Vb)[seq_len(q)]),
+      se = sds * sqrt(diag(Vb)[rdm_sd_index(q, blk$struct)]),
       stringsAsFactors = FALSE
     )
-    ## a diagonal covariance matrix has no correlations to report
-    if (q > 1L && !identical(blk$struct, "diag")) {
+    ## only the unstructured and compound-symmetric blocks have correlations
+    if (q > 1L && blk$struct %in% c("us", "cs")) {
       extra <- list()
       for (i in 2:q) {
         for (j in seq_len(i - 1L)) {

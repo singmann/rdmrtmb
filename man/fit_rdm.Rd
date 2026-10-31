@@ -31,8 +31,10 @@ per free model parameter. Valid names are \code{"A"}, \code{"b"}, \code{"t0"}, \
 \code{acc()} are estimated separately for each accumulator, and \code{acc()} terms
 that refer to the accumulator \code{.acc} compare it with a trial variable, e.g.
 \code{v = ~ Condition + acc(.acc == Word)}. Random effects are written inside
-the formulas as in lme4, e.g. \code{A = ~ 1 + (1 | id)}, and \code{diag(...)} gives
-a diagonal covariance matrix, e.g. \code{v = ~ acc(1) + diag(0 + Condition | id)}. See \code{\link[=acc]{acc()}} and \code{\link[=rdm_formula]{rdm_formula()}}.}
+the formulas as in lme4, e.g. \code{A = ~ 1 + (1 | id)}. A term can be wrapped
+in \code{diag()}, \code{homdiag()} or \code{cs()} to choose its covariance structure, as
+in glmmTMB, e.g. \code{v = ~ acc(1) + diag(0 + Condition | id)}. See \code{\link[=acc]{acc()}}
+and \code{\link[=rdm_formula]{rdm_formula()}}.}
 
 \item{fixed}{Named list of parameters held constant on their natural scale,
 e.g. \code{list(s = 1)}. A fixed \code{b} is the threshold itself, not the distance.
@@ -40,7 +42,8 @@ The value can have length 1 (shared) or one value per accumulator.}
 
 \item{prior}{A list with elements \code{sd} and \code{beta} giving the scale of the
 half-normal prior on the random-effect standard deviations and of the
-normal prior on the fixed effects. Use \code{NULL} for a flat prior. Weak
+normal prior on the fixed effects (and on the correlations of \code{cs()}
+blocks). Use \code{NULL} for a flat prior. Weak
 priors are needed in practice: with a flat prior the Laplace
 approximation is unbounded for large variance components.}
 

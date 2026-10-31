@@ -76,15 +76,26 @@ rdm_nll <- function(design, ranef = NULL,
     beta[idx[[nm]]] <- coef_starts(design[[nm]]$coef_names, nm, design)
   }
   theta <- setNames(rep(0, length(theta_names)), theta_names)
+  ## standard deviations start small, correlations at zero
   for (b in seq_along(blocks)) {
-    theta[theta_idx[[b]][seq_len(blocks[[b]]$q)]] <- log(0.1)
+    blk <- blocks[[b]]
+    theta[theta_idx[[b]][rdm_sd_index(blk$q, blk$struct)]] <- log(0.1)
+    if (identical(blk$struct, "cs") && blk$q > 1L) {
+      theta[theta_idx[[b]][2L]] <- cs_theta(0, blk$q)
+    }
   }
   par <- list(beta = beta)
   if (length(theta)) par$theta <- theta
   if (length(blocks)) par$u <- setNames(rep(0, n_u), paste0("u", seq_len(n_u)))
 
+  ## the positions of the log standard deviations and of the correlations
   diagonal <- unlist(lapply(seq_along(blocks),
-                            \(b) theta_idx[[b]][seq_len(blocks[[b]]$q)]))
+                            \(b) theta_idx[[b]][rdm_sd_index(blocks[[b]]$q,
+                                                              blocks[[b]]$struct)]))
+  corr <- unlist(lapply(seq_along(blocks), function(b) {
+    if (!identical(blocks[[b]]$struct, "cs") || blocks[[b]]$q == 1L) return(NULL)
+    theta_idx[[b]][2L]
+  }))
 
   ## linear predictors for a given parameter vector
   lin_fun <- function(beta, u) {
@@ -144,6 +155,11 @@ rdm_nll <- function(design, ranef = NULL,
     if (!is.null(prior$sd) && length(diagonal)) {
       sd <- exp(par$theta[diagonal])
       nll <- nll - sum(dnorm(sd, 0, prior$sd, log = TRUE) + log(sd))
+    }
+    ## compound-symmetry correlations are kept away from +-1, where the
+    ## covariance matrix is singular
+    if (!is.null(prior$beta) && length(corr)) {
+      nll <- nll - sum(dnorm(par$theta[corr], 0, prior$beta, log = TRUE))
     }
     nll
   }

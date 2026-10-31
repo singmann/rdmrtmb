@@ -33,9 +33,10 @@
 #'   `acc()` are estimated separately for each accumulator, and `acc()` terms
 #'   that refer to the accumulator `.acc` compare it with a trial variable, e.g.
 #'   `v = ~ Condition + acc(.acc == Word)`. Random effects are written inside
-#'   the formulas as in lme4, e.g. `A = ~ 1 + (1 | id)`, and `diag(...)` gives
-#'   a diagonal covariance matrix, e.g. `v = ~ acc(1) + diag(0 + Condition |
-#'   id)`. See [acc()] and [rdm_formula()].
+#'   the formulas as in lme4, e.g. `A = ~ 1 + (1 | id)`. A term can be wrapped
+#'   in `diag()`, `homdiag()` or `cs()` to choose its covariance structure, as
+#'   in glmmTMB, e.g. `v = ~ acc(1) + diag(0 + Condition | id)`. See [acc()]
+#'   and [rdm_formula()].
 #' @param fixed Named list of parameters held constant on their natural scale,
 #'   e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not the distance.
 #'   The value can have length 1 (shared) or one value per accumulator.
@@ -44,7 +45,8 @@
 #'   under its full name, e.g. `list("acc(.acc == Word)" = contr.sum)`.
 #' @param prior A list with elements `sd` and `beta` giving the scale of the
 #'   half-normal prior on the random-effect standard deviations and of the
-#'   normal prior on the fixed effects. Use `NULL` for a flat prior. Weak
+#'   normal prior on the fixed effects (and on the correlations of `cs()`
+#'   blocks). Use `NULL` for a flat prior. Weak
 #'   priors are needed in practice: with a flat prior the Laplace
 #'   approximation is unbounded for large variance components.
 #' @param barrier Weight of the smooth penalty for response times shorter than

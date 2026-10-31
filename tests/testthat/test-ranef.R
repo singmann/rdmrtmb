@@ -105,6 +105,27 @@ test_that("diag() gives a diagonal covariance matrix", {
   expect_true(all(vapply(r$blocks, \(b) b$struct, "") == "diag"))
 })
 
+test_that("homdiag shares one variance and cs adds one correlation", {
+  r <- rdm_ranef(design_re(A = ~1 + homdiag(0 + cond | id), v = ~1))
+  b <- r$blocks[[1]]
+  expect_identical(b$q, 2L)
+  expect_identical(b$n_theta, 1L)
+  expect_false(b$correlated)
+  expect_identical(b$label, "A:(homdiag(0 + cond | id))")
+
+  r <- rdm_ranef(design_re(A = ~1 + cs(0 + cond | id), v = ~1))
+  expect_identical(r$blocks[[1]]$n_theta, 2L)
+  expect_identical(r$blocks[[1]]$struct, "cs")
+
+  ## a single-column term has no correlation to estimate
+  expect_identical(rdm_ranef(design_re(A = ~1 + cs(1 | id), v = ~1))$npar, 1L)
+
+  ## the wrappers work for several terms and group factors
+  r <- rdm_ranef(design_re(A = ~1 + homdiag(1 | id) + cs(1 + cond | item),
+                           v = ~1))
+  expect_identical(vapply(r$blocks, \(b) b$n_theta, 1L), c(1L, 2L))
+})
+
 test_that("the diag structure is part of the fixed part of the formula", {
   ## nobars() drops the whole term, wrapper included
   d <- design_re(A = ~1 + diag(0 + cond | id), v = ~1)
@@ -141,6 +162,39 @@ test_that("the Cholesky factorisation is correct", {
   expect_true(all(eigen(L %*% t(L), symmetric = TRUE, only.values = TRUE)$values > 0))
 })
 
+test_that("the compound-symmetry correlation covers the admissible range", {
+  ## theta = 0 is no correlation, whatever the number of columns
+  expect_equal(vapply(c(2, 3, 5), \(q) cs_rho(0, q), 0), rep(0, 3))
+  ## the bounds are the singular matrices
+  expect_equal(cs_rho(-Inf, 3), -1/2)
+  expect_equal(cs_rho(Inf, 3), 1)
+  expect_equal(cs_rho(c(-1, 0.5, 2), 3), cs_rho(cs_theta(cs_rho(c(-1, 0.5, 2), 3), 3), 3))
+})
+
+test_that("the compound-symmetry factor reproduces the covariance matrix", {
+  sigma <- 1.5
+  rho <- 0.4
+  q <- 4
+  th <- c(log(sigma), cs_theta(rho, q))
+  L <- rdm_chol(th, q, "cs")
+  Sigma <- sigma^2 * ((1 - rho) * diag(q) + rho * matrix(1, q, q))
+  expect_equal(L %*% t(L), Sigma)
+  ## the log determinant shortcut is the sum of the logs of the diagonal
+  expect_equal(rdm_chol_logdet(th, q, "cs"), sum(log(diag(L))))
+  expect_equal(2 * rdm_chol_logdet(th, q, "cs"), log(det(Sigma)))
+
+  ## a negative correlation is allowed as long as the matrix stays positive
+  ## definite
+  th <- c(log(sigma), cs_theta(-0.2, q))
+  L <- rdm_chol(th, q, "cs")
+  Sigma <- sigma^2 * ((1 + 0.2) * diag(q) - 0.2 * matrix(1, q, q))
+  expect_equal(L %*% t(L), Sigma)
+
+  ## the homogeneous diagonal structure
+  expect_equal(rdm_chol(log(2), 3, "homdiag"), diag(2, 3))
+  expect_equal(rdm_chol_logdet(log(2), 3, "homdiag"), 3 * log(2))
+})
+
 test_that("the triangular solve is correct", {
   L <- rdm_chol(c(log(2), log(0.5), 0.3), 2)
   U <- matrix(c(1, 2, 3, 4, -1, 0.5, 2, -2), ncol = 2)
@@ -160,6 +214,29 @@ test_that("the random-effect penalty is a multivariate normal density", {
       0.5 * log(det(Sigma)) + log(2 * pi)
   }
   expect_equal(rdm_ranef_penalty(block, u, theta), manual)
+})
+
+test_that("the homdiag and cs penalties are multivariate normal densities", {
+  q <- 3
+  u <- matrix(c(-1, 2, 0.5, -0.5, 1, -1.5, 0, 1, 2), ncol = q)
+  manual_penalty <- function(theta, block, Sigma) {
+    sum(0.5 * rowSums((u %*% solve(Sigma)) * u) + 0.5 * log(det(Sigma)) +
+          q / 2 * log(2 * pi))
+  }
+
+  ## homogeneous diagonal: one variance for all three columns
+  theta <- log(0.7)
+  block <- list(q = q, n_lev = 3L, struct = "homdiag")
+  expect_equal(rdm_ranef_penalty(block, u, theta),
+               manual_penalty(theta, block, 0.7^2 * diag(q)))
+
+  ## compound symmetry: common variance and common correlation
+  sigma <- 1.2
+  rho <- 0.5
+  theta <- c(log(sigma), cs_theta(rho, q))
+  block <- list(q = q, n_lev = 3L, struct = "cs")
+  Sigma <- sigma^2 * ((1 - rho) * diag(q) + rho * matrix(1, q, q))
+  expect_equal(rdm_ranef_penalty(block, u, theta), manual_penalty(theta, block, Sigma))
 })
 
 test_that("the diag penalty is a row of independent normal densities", {
@@ -187,8 +264,12 @@ test_that("the print method summarises the random effects", {
                                                 v = ~1))))
   expect_true(any(grepl("1 term", out)))
   expect_true(any(grepl("correlated", out)))
-  expect_true(any(grepl("diagonal", capture.output(
-    print(rdm_ranef(design_re(A = ~1 + diag(0 + cond | id), v = ~1)))))))
+  out <- capture.output(print(rdm_ranef(design_re(A = ~1 + diag(0 + cond | id),
+                                                 v = ~1))))
+  expect_true(any(grepl(", diag", out)))
+  out <- capture.output(print(rdm_ranef(design_re(A = ~1 + cs(0 + cond | id),
+                                                 v = ~1))))
+  expect_true(any(grepl(", cs", out)))
   expect_true(any(grepl("no random effects",
                         capture.output(print(rdm_ranef(design))))))
 })

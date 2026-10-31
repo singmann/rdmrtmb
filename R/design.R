@@ -40,8 +40,9 @@ acc <- function(x) x
 #'   the accumulators and are coded `1:K`.
 #' @param formula Named list of formulas, one per free parameter. Valid names
 #'   are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`, see the details. Random-effect
-#'   terms such as `(1 | id)` or `diag(1 + Condition | id)` may appear in any of
-#'   the formulas; they are split off here and read by `rdm_ranef()`.
+#'   terms such as `(1 | id)`, `diag(1 + Condition | id)` or `cs(1 + Condition
+#'   | id)` may appear in any of the formulas; they are split off here and read
+#'   by `rdm_ranef()`.
 #' @param fixed Named list of parameters that are held constant, on their
 #'   natural scale, e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not
 #'   the threshold distance. The value can have length 1 (shared) or `K` (one

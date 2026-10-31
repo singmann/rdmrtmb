@@ -41,4 +41,8 @@ test_that("the print method shows the fixed and random parts", {
 
   out <- capture.output(print(rdm_formula(v = ~ acc(1) + diag(0 + cond | id))))
   expect_match(out[2], "diag\\(0 \\+ cond \\| id\\)")
+
+  out <- capture.output(print(rdm_formula(v = ~ homdiag(1 | id) + cs(1 | id))))
+  expect_match(out[2], "homdiag\\(1 \\| id\\)")
+  expect_match(out[2], "cs\\(1 \\| id\\)")
 })

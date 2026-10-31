@@ -24,8 +24,15 @@ Collects one formula per model parameter and is the \code{formula} argument of
 \code{v = ~ Condition + acc(.acc == Word)};
 \item the random effects, written in the lme4 style (as in brms), e.g.
 \code{(1 | id)}, \code{(1 + Condition | id)} or \code{(1 | id) + (1 | item)};
-\item a term wrapped in \code{diag()} has a diagonal covariance matrix, that is
-independent variances and no correlations, as in glmmTMB. \code{diag(0 + Word | id)} estimates one variance per level of a factor, where \code{(0 + Word | id)} would estimate a covariance between the levels.
+\item a term can be wrapped in a covariance structure, as in glmmTMB:
+\code{diag()} gives one variance per column and no correlations, \code{homdiag()}
+gives a single variance shared by all columns, and \code{cs()} (compound
+symmetry) gives a single variance and a single correlation between any two
+columns. For example, \code{diag(0 + Word | id)} estimates one variance per
+level of a factor, where \code{(0 + Word | id)} would estimate a covariance
+between the levels. The correlation of a \code{cs()} term is constrained to the
+values that keep the covariance matrix positive definite and is held away
+from the singular boundary by the prior on the covariance parameters.
 }
 
 A parameter that is left out takes its default: no start-point variability
