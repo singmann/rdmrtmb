@@ -56,9 +56,13 @@ approximation is unbounded for large variance components.}
 \item{inner.control}{List of control arguments for the inner optimisation of
 the random effects.}
 
-\item{start}{Optional named vector of starting values for the fixed effects,
-on the log scale, e.g. \code{c("t0:(Intercept)" = log(0.3))}. Names must match
-those of the model coefficients.}
+\item{start}{Starting values. Either a named vector for the fixed effects, on
+the log scale, e.g. \code{c("t0:(Intercept)" = log(0.3))}, or a previous
+\code{rdm_fit}, or a list with elements \code{beta}, \code{theta} and \code{u}. Restarting from
+a previous fit is much faster than fitting from scratch, which matters for
+larger models where every Laplace evaluation costs seconds. Coefficients in
+a vector that the model does not have are an error; coefficients the vector
+leaves out keep their default start.}
 
 \item{sdreport}{If \code{TRUE} (the default), standard errors are computed with
 \code{RTMB::sdreport()}.}
