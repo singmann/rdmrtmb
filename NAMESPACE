@@ -15,6 +15,7 @@ S3method(ranef,rdm_fit)
 S3method(simulate,rdm_fit)
 S3method(summary,rdm_fit)
 S3method(vcov,rdm_fit)
+export(acc)
 export(fit_rdm)
 export(fixef)
 export(ranef)
@@ -36,6 +37,7 @@ importFrom(stats,
   nobs,
   predict,
   qnorm,
+  reformulate,
   rnorm,
   runif,
   setNames,

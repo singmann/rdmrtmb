@@ -17,7 +17,7 @@ small_fit <- local({
       dat <- simulate_data()
       cached <<- fit_rdm(dat, rt = "rt", response = "response",
                          formula = list(A = ~1, b = ~1, t0 = ~1,
-                                        v = list(~1, ~1, ~1)),
+                                        v = ~ acc(1)),
                          random = list(A = ~(1 | id), t0 = ~(1 | id)))
     }
     cached
@@ -31,7 +31,7 @@ plain_fit <- local({
       dat <- simulate_data(seed = 2)
       cached <<- fit_rdm(dat, rt = dat$rt, response = dat$response,
                          formula = list(A = ~1, b = ~1, t0 = ~1,
-                                        v = list(~1, ~1, ~1)))
+                                        v = ~ acc(1)))
     }
     cached
   }

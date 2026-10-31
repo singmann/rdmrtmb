@@ -17,7 +17,7 @@ fit_rdm(
   inner.control = list(),
   start = NULL,
   sdreport = TRUE,
-  matchfun = NULL
+  contrasts = list()
 )
 }
 \arguments{
@@ -27,12 +27,11 @@ fit_rdm(
 of a column of \code{data}.}
 
 \item{formula}{Named list of formulas, one per free model parameter. Valid
-names are \code{"A"}, \code{"b"}, \code{"t0"}, \code{"v"} and \code{"s"}. Every formula may be given
-once, in which case the parameter is shared by all accumulators, or as a
-list of \code{K} formulas, one per accumulator, e.g. \code{b = list(~1, ~1)} for a
-threshold that differs between two responses. A single drift-rate formula
-is evaluated on the expanded data, where the accumulator is available as
-\code{response} (and as \code{lR}, see \code{matchfun}).}
+names are \code{"A"}, \code{"b"}, \code{"t0"}, \code{"v"} and \code{"s"}. Terms shared by all
+accumulators are written as usual; terms inside \code{acc()} are estimated
+separately for each accumulator, and \code{acc()} terms that refer to the
+accumulator \code{.acc} compare it with a trial variable, e.g.
+\code{v = ~ Condition + acc(.acc == Word)}. See \code{\link[=acc]{acc()}}.}
 
 \item{fixed}{Named list of parameters held constant on their natural scale,
 e.g. \code{list(s = 1)}. A fixed \code{b} is the threshold itself, not the distance.
@@ -63,10 +62,9 @@ those of the model coefficients.}
 \item{sdreport}{If \code{TRUE} (the default), standard errors are computed with
 \code{RTMB::sdreport()}.}
 
-\item{matchfun}{Optional function of the expanded data returning a logical
-vector, \code{TRUE} where the accumulator of a row matches the stimulus, e.g.
-\code{function(d) d$S == d$lR}. The result is added to the expanded data as the
-factor \code{lM}, so formulas can include the latent match.}
+\item{contrasts}{Named list of contrast matrices, passed on to
+\code{\link[stats:model.matrix]{stats::model.matrix()}}. The contrasts of a term inside \code{acc()} are given
+under its full name, e.g. \code{list("acc(.acc == Word)" = contr.sum)}.}
 }
 \value{
 An object of class \code{rdm_fit}, a list with the components
@@ -97,14 +95,12 @@ describe the log distance between the threshold and the upper bound of the
 start point. Use \code{coef(fit, type = "response")} for the back-transformed
 values.
 
-A parameter whose formula is a list with one formula per accumulator is
-estimated separately for each accumulator, e.g. \code{b = list(~1, ~1)} for a
-threshold that differs between two responses, which is a response bias. Such
-a list of intercepts estimates one threshold distance per accumulator. The
-expanded data contain the accumulator as the factor \code{lR}, and \code{matchfun} adds
-the latent match as the factor \code{lM}, so that the model can be written in the
-notation of the EMC2 package: \code{B ~ 0 + lR} there is \code{b = list(~1, ~1, ...)}
-here, and \code{v ~ 0 + S + lM} is unchanged.
+A term inside \code{acc()} is estimated separately for each accumulator, so
+\code{b = ~ acc(1)} gives one threshold distance per accumulator (a response
+bias). Inside \code{acc()} the current accumulator is available as \code{.acc}, and a
+term that refers to it is a single predictor instead: \code{acc(.acc == Word)} is
+one coefficient that is 1 where the accumulator matches the word. See
+\code{\link[=acc]{acc()}}.
 }
 \seealso{
 \code{\link[=coef.rdm_fit]{coef.rdm_fit()}}, \code{\link[=confint.rdm_fit]{confint.rdm_fit()}}, \code{\link[=ranef.rdm_fit]{ranef.rdm_fit()}},

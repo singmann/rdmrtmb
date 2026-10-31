@@ -180,7 +180,7 @@ fitted.rdm_fit <- function(object, ...) {
   ## the drift rates are the only parameter with one column per accumulator in
   ## the wide format; the others need one row per trial and accumulator
   expanded <- any(vapply(c("A", "b", "t0", "s"),
-                         \(p) isTRUE(object$design[[p]]$expanded), TRUE))
+                         \(p) isTRUE(object$design[[p]]$per_accumulator), TRUE))
   out <- if (expanded) {
     out <- object$design$long
     out$A <- as.vector(mp$A)

@@ -1,7 +1,7 @@
 test_that("fit_rdm returns a fitted object without random effects", {
   dat <- simulate_data(seed = 3)
   f <- fit_rdm(dat, rt = "rt", response = "response",
-               formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)))
+               formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
   expect_s3_class(f, "rdm_fit")
   expect_true(f$converged)
   expect_named(f$beta, c("A:(Intercept)", "b:(Intercept)", "t0:(Intercept)",
@@ -31,15 +31,15 @@ test_that("fit_rdm estimates random effects", {
 test_that("starting values can be supplied and are checked", {
   dat <- simulate_data(seed = 4)
   f <- fit_rdm(dat, rt = "rt", response = "response",
-               formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)),
+               formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)),
                start = c("t0:(Intercept)" = log(0.3)))
   plain <- fit_rdm(dat, rt = "rt", response = "response",
-                   formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)))
+                   formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
   expect_true(f$converged)
   expect_equal(coef(f), coef(plain), tolerance = 1e-3)
   expect_error(
     fit_rdm(dat, rt = "rt", response = "response",
-            formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)),
+            formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)),
             start = c(nope = 1)),
     "unknown name"
   )
@@ -65,8 +65,8 @@ test_that("thresholds can differ between accumulators", {
   dat <- data.frame(rt = draw$rt, response = draw$response)
 
   f <- fit_rdm(dat, rt = "rt", response = "response",
-               formula = list(A = ~1, t0 = ~1, b = list(~1, ~1),
-                              v = list(~1, ~1)))
+               formula = list(A = ~1, t0 = ~1, b = ~ acc(1),
+                              v = ~ acc(1)))
   ce <- coef(f, type = "response")
   ## the lower threshold wins more often; the coefficients of `b` are the
   ## distance between the threshold and the start point, so they are b - A
@@ -78,6 +78,6 @@ test_that("thresholds can differ between accumulators", {
   ## the fitted() values are one row per trial and accumulator
   fit <- fitted(f)
   expect_equal(nrow(fit), 2 * n)
-  expect_true(all(c("lR", "A", "b", "v") %in% names(fit)))
-  expect_equal(fit$b[fit$lR == "1"], rep(1.4, n), tolerance = 0.2)
+  expect_true(all(c("response", "A", "b", "v") %in% names(fit)))
+  expect_equal(fit$b[fit$response == "1"], rep(1.4, n), tolerance = 0.2)
 })

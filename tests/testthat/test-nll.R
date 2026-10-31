@@ -29,7 +29,7 @@ test_that("the objective reproduces the rtdists likelihood without random effect
   dat <- simulate_trials()
   d <- rdm_design(dat, dat$rt, dat$response,
                   formula = list(A = ~1, b = ~cond, t0 = ~1,
-                                 v = list(~1, ~1, ~1)))
+                                 v = ~ acc(1)))
   info <- rdm_nll(d, prior = list(sd = NULL, beta = NULL))
   beta <- c("A:(Intercept)" = log(0.6), "b:(Intercept)" = log(0.7),
             "b:condy" = 0.2, "t0:(Intercept)" = log(0.9),
@@ -50,7 +50,7 @@ test_that("the objective reproduces the rtdists likelihood without random effect
 test_that("the gradients of the objective are correct", {
   dat <- simulate_trials(n = 200)
   d <- rdm_design(dat, dat$rt, dat$response,
-                  formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)))
+                  formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
   info <- rdm_nll(d, prior = list(sd = NULL, beta = NULL))
   p <- info$par
   p$beta["t0:(Intercept)"] <- log(0.4 * min(dat$rt))
@@ -62,7 +62,7 @@ test_that("the gradients of the objective are correct", {
 test_that("the random-effect penalty matches a multivariate normal density", {
   dat <- simulate_trials(n = 300)
   d <- rdm_design(dat, dat$rt, dat$response,
-                  formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)))
+                  formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
   r <- rdm_ranef(list(A = ~(1 | id)), dat, d)
   info <- rdm_nll(d, r, prior = list(sd = NULL, beta = NULL))
   p <- info$par
@@ -86,7 +86,7 @@ test_that("the random-effect penalty matches a multivariate normal density", {
 test_that("the barrier rejects response times shorter than t0", {
   dat <- simulate_trials(n = 100)
   d <- rdm_design(dat, dat$rt, dat$response,
-                  formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)))
+                  formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
   info <- rdm_nll(d, prior = list(sd = NULL, beta = NULL))
   p <- info$par
   ok <- p
@@ -99,14 +99,14 @@ test_that("the barrier rejects response times shorter than t0", {
 test_that("a fixed diffusion constant rescales the model", {
   dat <- simulate_trials(n = 200)
   d <- rdm_design(dat, dat$rt, dat$response,
-                  formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)))
+                  formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
   info <- rdm_nll(d, prior = list(sd = NULL, beta = NULL))
   p <- info$par
   p$beta["t0:(Intercept)"] <- log(0.4 * min(dat$rt))
   ## s = 1 is the default; a model with all parameters scaled by 2 fits the
   ## same data equally well
   d2 <- rdm_design(dat, dat$rt, dat$response,
-                   formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)),
+                   formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)),
                    fixed = list(s = 2))
   info2 <- rdm_nll(d2, prior = list(sd = NULL, beta = NULL))
   ## s scales A, b and v, so their coefficients shift by log(2)
@@ -126,7 +126,7 @@ test_that("the model can be fitted and recovers its parameters", {
     data.frame(id = i, rt = d$rt, response = d$response)
   }))
   des <- rdm_design(sim, sim$rt, sim$response,
-                    formula = list(A = ~1, b = ~1, t0 = ~1, v = list(~1, ~1, ~1)))
+                    formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
   ran <- rdm_ranef(~(1 | id), sim, des)
   info <- rdm_nll(des, ran, prior = list(sd = 0.5, beta = 2))
   obj <- RTMB::MakeADFun(info$fn, info$par, random = info$random, silent = TRUE)

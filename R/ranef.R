@@ -52,9 +52,9 @@ rdm_ranef <- function(random, data, design) {
       stop("the random-effects formula for `", par, "` must be one-sided, e.g. ",
            "~(1 | id).", call. = FALSE)
     }
-    ## random effects on a parameter that varies over trials and accumulators
-    ## are evaluated on the expanded data
-    re_data <- if (isTRUE(design[[par]]$expanded)) design$long else design$data
+    ## the design matrices live on the expanded data, so the random effects are
+    ## evaluated there as well
+    re_data <- design$long
     terms <- reformulas::findbars(form)
     if (!length(terms)) {
       stop("the random-effects formula for `", par, "` has no `(term | group)` ",

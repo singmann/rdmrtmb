@@ -25,8 +25,10 @@ test_that("terms are parsed into blocks with the right size", {
   expect_identical(b$n_lev, 4L)
   expect_identical(b$n_theta, 1L)
   expect_false(b$correlated)
-  expect_identical(b$group, rep(1:4, each = 2))
-  expect_equal(b$Z, matrix(1, 8, 1))
+  ## the design matrices live on the expanded data, one row per trial and
+  ## accumulator, so the random effects are evaluated there too
+  expect_identical(b$group, rep(rep(1:4, each = 2), times = 2))
+  expect_equal(b$Z, matrix(1, 16, 1))
 
   ## a correlated intercept and slope: one covariance parameter per element of
   ## the lower triangle
@@ -35,7 +37,7 @@ test_that("terms are parsed into blocks with the right size", {
   expect_identical(b$q, 2L)
   expect_identical(b$n_theta, 3L)
   expect_true(b$correlated)
-  expect_equal(b$Z[, 2], as.numeric(example_data$cond == "y"))
+  expect_equal(b$Z[, 2], rep(as.numeric(example_data$cond == "y"), times = 2))
 
   ## slopes without an intercept
   r <- rdm_ranef(list(A = ~(0 + cond | id)), example_data, design)
@@ -56,9 +58,10 @@ test_that("random-effect contributions are the sum of the block terms", {
   u2 <- matrix(c(0.5, -0.5, 1, -1), ncol = 2)
   c1 <- rdm_ranef_contrib(r$blocks[[1]], u1)
   c2 <- rdm_ranef_contrib(r$blocks[[2]], u2)
-  expect_equal(c1, rep(c(-1, 0, 1, 2), each = 2))
+  expect_equal(c1, rep(rep(c(-1, 0, 1, 2), each = 2), times = 2))
   ## (0 + cond | item) gives one effect per condition and item
-  expect_equal(c2, u2[cbind(example_data$item, as.integer(example_data$cond))])
+  expect_equal(c2, rep(u2[cbind(example_data$item, as.integer(example_data$cond))],
+                       times = 2))
 })
 
 test_that("the Cholesky factorisation is correct", {
