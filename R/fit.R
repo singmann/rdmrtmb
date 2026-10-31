@@ -24,6 +24,12 @@
 #' one coefficient that is 1 where the accumulator matches the word. See
 #' [acc()].
 #'
+#' The left-hand side of a random-effect term is built like the fixed part, so
+#' `acc()` can be used there as well and the random effects can mirror the fixed
+#' effects: with `v = ~ acc(Condition) + (acc(Condition) | id)` every
+#' accumulator-and-condition effect of the fixed part has a random counterpart.
+#' The accumulator variables `response` and `.acc` are available there too.
+#'
 #' @param data A `data.frame` with one row per trial.
 #' @param rt,response Response times and responses. Either a vector or the name
 #'   of a column of `data`.

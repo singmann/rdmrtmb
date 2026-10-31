@@ -42,7 +42,9 @@ acc <- function(x) x
 #'   are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`, see the details. Random-effect
 #'   terms such as `(1 | id)`, `diag(1 + Condition | id)` or `cs(1 + Condition
 #'   | id)` may appear in any of the formulas; they are split off here and read
-#'   by `rdm_ranef()`.
+#'   by `rdm_ranef()`. Their left-hand side is built like the fixed part, so
+#'   `acc()` and the accumulator variables `response` and `.acc` can be used
+#'   there too.
 #' @param fixed Named list of parameters that are held constant, on their
 #'   natural scale, e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not
 #'   the threshold distance. The value can have length 1 (shared) or `K` (one
@@ -131,10 +133,12 @@ rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
 }
 
 ## the design of one parameter: shared terms, terms estimated per accumulator
-## and terms that compare the accumulator with a trial variable
-par_spec <- function(form, data, long, n, K, par, levels, contrasts) {
+## and terms that compare the accumulator with a trial variable. `what` names
+## the term in the error messages; `rdm_ranef()` uses it for the random-effect
+## terms, which go through the same machinery.
+par_spec <- function(form, data, long, n, K, par, levels, contrasts, what = par) {
   if (!inherits(form, "formula")) {
-    stop("the formula for `", par, "` must be a formula, e.g. ~1.", call. = FALSE)
+    stop("the formula for `", what, "` must be a formula, e.g. ~1.", call. = FALSE)
   }
   env <- environment(form)
   if (is.null(env)) env <- parent.frame()
@@ -217,12 +221,12 @@ par_spec <- function(form, data, long, n, K, par, levels, contrasts) {
 
   rownames(X) <- NULL
   if (ncol(X) == 0) {
-    stop("the formula for `", par, "` has no coefficients (did you use `~ 0`?).",
+    stop("the formula for `", what, "` has no coefficients (did you use `~ 0`?).",
          call. = FALSE)
   }
   rank <- qr(X)$rank
   if (rank < ncol(X)) {
-    stop("the model matrix of `", par, "` is rank deficient (", rank, " of ",
+    stop("the model matrix of `", what, "` is rank deficient (", rank, " of ",
          ncol(X), " coefficients are identified): ", paste(colnames(X), collapse = ", "),
          ". Remove the redundant terms.", call. = FALSE)
   }

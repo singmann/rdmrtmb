@@ -126,8 +126,10 @@ test_that("print() and summary() work", {
   expect_named(s$coefficients, NULL)
   expect_equal(nrow(s$coefficients), length(f$beta))
   expect_equal(s$AIC, AIC(f))
-  expect_equal(s$variance$estimate[s$variance$parameter == "sd((Intercept))"],
-               exp(f$theta[grep("\\.1$", names(f$theta))]),
+  ## the effects of a block carry the name of the parameter and of the term, so
+  ## that they can be matched to the fixed effects
+  expect_equal(s$variance$estimate[s$variance$parameter == "sd(A:(Intercept))"],
+               exp(f$theta[grep("^A:", names(f$theta))]),
                ignore_attr = TRUE)
   expect_output(print(s), "Fixed effects")
   expect_output(print(s), "Random effects")

@@ -137,6 +137,38 @@ test_that("unknown covariance structures are rejected", {
                "unsupported covariance structure")
 })
 
+test_that("acc() can be used on the left of the bar", {
+  ## acc(Condition) in the bar gives the same columns as acc(Condition) in the
+  ## fixed part: one intercept and one contrast per accumulator
+  d <- design_re(A = ~1, v = ~ acc(cond) + (acc(cond) | id))
+  b <- rdm_ranef(d)$blocks[[1]]
+  expect_identical(b$q, 4L)
+  expect_identical(b$n_theta, 10L)
+  expect_identical(b$col_names, colnames(d$v$X))
+  ## row j of Z is the rotated column of the fixed design of that row
+  expect_equal(b$Z[, 1], as.numeric(d$v$X[, 1]))
+
+  ## the covariance wrappers apply to the larger block
+  expect_identical(rdm_ranef(design_re(A = ~1, v = ~ acc(cond) +
+                                         diag(acc(cond) | id)))$blocks[[1]]$n_theta,
+                   4L)
+
+  ## terms that compare the accumulator with a trial variable are available
+  ## here as well, with as many columns as in the fixed part
+  d <- design_re(A = ~1, v = ~ acc(.acc == "b") + (acc(.acc == "b") | id))
+  b <- rdm_ranef(d)$blocks[[1]]
+  expect_identical(b$q, ncol(d$v$X))
+  expect_identical(b$col_names, colnames(d$v$X))
+
+  ## the accumulator is available through `response` as well
+  expect_identical(rdm_ranef(design_re(A = ~1, v = ~1 + (0 + response | id)))$blocks[[1]]$q,
+                   2L)
+
+  ## a bar that repeats a shared term is rank deficient
+  expect_error(rdm_ranef(design_re(A = ~1, v = ~ acc(cond) + (cond + acc(cond) | id))),
+               "rank deficient")
+})
+
 test_that("random-effect contributions are the sum of the block terms", {
   r <- rdm_ranef(design_re(A = ~1 + (1 | id) + (0 + cond | item), v = ~1))
   u1 <- matrix(c(-1, 0, 1, 2), ncol = 1)

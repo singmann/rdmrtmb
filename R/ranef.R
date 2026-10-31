@@ -18,6 +18,11 @@
 #   * `homdiag` gives a single variance that is shared by all columns;
 #   * `cs` (compound symmetry) gives a single variance and a single correlation
 #     between any two columns.
+#
+# The left-hand side of the bar is built like the fixed part of the formula, so
+# `acc()` and the accumulator variables `response` and `.acc` can be used there
+# too. `(acc(Condition) | id)` therefore gives the same set of effects as
+# `acc(Condition)` in the formula, one per accumulator and condition.
 
 ## the covariance structures a term can have, by the name of the wrapper
 rdm_structs <- c(us = "us", diag = "diag", homdiag = "homdiag", cs = "cs")
@@ -94,7 +99,7 @@ rdm_ranef <- function(design) {
     ## the design matrices live on the expanded data, so the random effects are
     ## evaluated there as well
     for (term in terms[[par]]) {
-      blocks[[length(blocks) + 1L]] <- ranef_block(term$term, design$long, par,
+      blocks[[length(blocks) + 1L]] <- ranef_block(term$term, design, par,
                                                    term$struct)
     }
   }
@@ -103,15 +108,23 @@ rdm_ranef <- function(design) {
   structure(list(blocks = blocks, npar = npar), class = c("rdm_ranef", "list"))
 }
 
-## one `(expr | group)` term
-ranef_block <- function(term, data, par, struct = "us") {
+## one `(expr | group)` term. The effects are built with the same machinery as
+## the fixed effects, so the accumulator terms of the fixed part can be repeated
+## in the random part: `acc(Condition)` in a bar gives one effect per
+## accumulator and condition, exactly like `acc(Condition)` in the formula.
+ranef_block <- function(term, design, par, struct = "us") {
   if (!identical(as.character(term[[1]]), "|")) {
     stop("only single-bar terms such as (1 | id) are supported.", call. = FALSE)
   }
   group_expr <- term[[3]]
   re_expr <- term[[2]]
+  ## the design matrices live on the expanded data, so the random effects are
+  ## evaluated there as well, where `.acc` and `response` are available
+  data <- design$long
+  env <- environment(design$formula[[par]])
+  if (is.null(env)) env <- parent.frame()
 
-  group <- tryCatch(eval(group_expr, data, parent.frame()),
+  group <- tryCatch(eval(group_expr, data, env),
                     error = function(e) {
                       stop("the grouping variable `", deparse1(group_expr),
                            "` was not found in `data`.", call. = FALSE)
@@ -130,20 +143,21 @@ ranef_block <- function(term, data, par, struct = "us") {
   levels <- as.character(levels)
   group_idx <- match(group, levels)
 
-  Z <- stats::model.matrix(stats::as.formula(paste("~", deparse1(re_expr))), data)
-  if (ncol(Z) == 0) {
-    stop("the random-effects term `", deparse1(term), "` has no columns.",
-         call. = FALSE)
-  }
-  ## a term with only an intercept column is stored as a single column of ones
+  ## the columns of the block, one row per row of the expanded data; only the
+  ## values are kept, the names are stored separately
+  spec <- par_spec(stats::as.formula(paste("~", deparse1(re_expr)), env = env),
+                   design$data, data, design$n, design$K, par,
+                   design$response_levels, design$contrasts,
+                   what = paste0("the random-effects term (", deparse1(term), ")"))
+  Z <- matrix(as.numeric(spec$X), nrow = nrow(spec$X), ncol = ncol(spec$X))
   q <- ncol(Z)
   wrapped <- !identical(struct, "us")
   list(par = par,
        label = if (wrapped) paste0(par, ":(", struct, "(", deparse1(term), "))")
                else paste0(par, ":(", deparse1(term), ")"),
        struct = struct,
-       Z = matrix(as.numeric(Z), nrow = nrow(Z), ncol = ncol(Z)),
-       col_names = colnames(Z),
+       Z = Z,
+       col_names = spec$coef_names,
        group = group_idx,
        group_expr = deparse1(group_expr),
        levels = levels,
