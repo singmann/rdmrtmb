@@ -62,8 +62,9 @@ test_that("the gradients of the objective are correct", {
 test_that("the random-effect penalty matches a multivariate normal density", {
   dat <- simulate_trials(n = 300)
   d <- rdm_design(dat, dat$rt, dat$response,
-                  formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
-  r <- rdm_ranef(list(A = ~(1 | id)), dat, d)
+                  formula = rdm_formula(A = ~1 + (1 | id), b = ~1, t0 = ~1,
+                                        v = ~ acc(1)))
+  r <- rdm_ranef(d)
   info <- rdm_nll(d, r, prior = list(sd = NULL, beta = NULL))
   p <- info$par
   p$beta["t0:(Intercept)"] <- log(0.4 * min(dat$rt))
@@ -126,8 +127,10 @@ test_that("the model can be fitted and recovers its parameters", {
     data.frame(id = i, rt = d$rt, response = d$response)
   }))
   des <- rdm_design(sim, sim$rt, sim$response,
-                    formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
-  ran <- rdm_ranef(~(1 | id), sim, des)
+                    formula = rdm_formula(A = ~1 + (1 | id), b = ~1 + (1 | id),
+                                          t0 = ~1 + (1 | id),
+                                          v = ~ acc(1) + (1 | id)))
+  ran <- rdm_ranef(des)
   info <- rdm_nll(des, ran, prior = list(sd = 0.5, beta = 2))
   obj <- RTMB::MakeADFun(info$fn, info$par, random = info$random, silent = TRUE)
   ## the inner optimisation of the random effects warns about NaNs while it

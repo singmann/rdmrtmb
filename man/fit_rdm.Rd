@@ -10,7 +10,6 @@ fit_rdm(
   response,
   formula,
   fixed = list(s = 1),
-  random = NULL,
   prior = list(sd = 0.5, beta = 2),
   barrier = 1000,
   control = list(),
@@ -26,20 +25,18 @@ fit_rdm(
 \item{rt, response}{Response times and responses. Either a vector or the name
 of a column of \code{data}.}
 
-\item{formula}{Named list of formulas, one per free model parameter. Valid
-names are \code{"A"}, \code{"b"}, \code{"t0"}, \code{"v"} and \code{"s"}. Terms shared by all
-accumulators are written as usual; terms inside \code{acc()} are estimated
-separately for each accumulator, and \code{acc()} terms that refer to the
-accumulator \code{.acc} compare it with a trial variable, e.g.
-\code{v = ~ Condition + acc(.acc == Word)}. See \code{\link[=acc]{acc()}}.}
+\item{formula}{An \code{\link[=rdm_formula]{rdm_formula()}} object, or a named list of formulas, one
+per free model parameter. Valid names are \code{"A"}, \code{"b"}, \code{"t0"}, \code{"v"} and
+\code{"s"}. Terms shared by all accumulators are written as usual; terms inside
+\code{acc()} are estimated separately for each accumulator, and \code{acc()} terms
+that refer to the accumulator \code{.acc} compare it with a trial variable, e.g.
+\code{v = ~ Condition + acc(.acc == Word)}. Random effects are written inside
+the formulas as in lme4, e.g. \code{A = ~ 1 + (1 | id)}. See \code{\link[=acc]{acc()}} and
+\code{\link[=rdm_formula]{rdm_formula()}}.}
 
 \item{fixed}{Named list of parameters held constant on their natural scale,
 e.g. \code{list(s = 1)}. A fixed \code{b} is the threshold itself, not the distance.
 The value can have length 1 (shared) or one value per accumulator.}
-
-\item{random}{A one-sided formula applied to every free parameter, or a named
-list of one-sided formulas, one per parameter, e.g.
-\code{list(A = ~(1 | id), t0 = ~(1 | id))}.}
 
 \item{prior}{A list with elements \code{sd} and \code{beta} giving the scale of the
 half-normal prior on the random-effect standard deviations and of the
@@ -103,6 +100,6 @@ one coefficient that is 1 where the accumulator matches the word. See
 \code{\link[=acc]{acc()}}.
 }
 \seealso{
-\code{\link[=coef.rdm_fit]{coef.rdm_fit()}}, \code{\link[=confint.rdm_fit]{confint.rdm_fit()}}, \code{\link[=ranef.rdm_fit]{ranef.rdm_fit()}},
-\code{\link[=predict.rdm_fit]{predict.rdm_fit()}}, \code{\link[=simulate.rdm_fit]{simulate.rdm_fit()}}
+\code{\link[=rdm_formula]{rdm_formula()}}, \code{\link[=acc]{acc()}}, \code{\link[=coef.rdm_fit]{coef.rdm_fit()}}, \code{\link[=confint.rdm_fit]{confint.rdm_fit()}},
+\code{\link[=ranef.rdm_fit]{ranef.rdm_fit()}}, \code{\link[=predict.rdm_fit]{predict.rdm_fit()}}, \code{\link[=simulate.rdm_fit]{simulate.rdm_fit()}}
 }

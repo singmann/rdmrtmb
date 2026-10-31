@@ -9,6 +9,7 @@ S3method(nobs,rdm_fit)
 S3method(predict,rdm_fit)
 S3method(print,rdm_design)
 S3method(print,rdm_fit)
+S3method(print,rdm_formula)
 S3method(print,rdm_ranef)
 S3method(print,summary.rdm_fit)
 S3method(ranef,rdm_fit)
@@ -19,6 +20,7 @@ export(acc)
 export(fit_rdm)
 export(fixef)
 export(ranef)
+export(rdm_formula)
 importFrom(RTMB,
   colSums,
   diag,

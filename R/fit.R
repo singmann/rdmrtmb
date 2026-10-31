@@ -27,21 +27,20 @@
 #' @param data A `data.frame` with one row per trial.
 #' @param rt,response Response times and responses. Either a vector or the name
 #'   of a column of `data`.
-#' @param formula Named list of formulas, one per free model parameter. Valid
-#'   names are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`. Terms shared by all
-#'   accumulators are written as usual; terms inside `acc()` are estimated
-#'   separately for each accumulator, and `acc()` terms that refer to the
-#'   accumulator `.acc` compare it with a trial variable, e.g.
-#'   `v = ~ Condition + acc(.acc == Word)`. See [acc()].
+#' @param formula An [rdm_formula()] object, or a named list of formulas, one
+#'   per free model parameter. Valid names are `"A"`, `"b"`, `"t0"`, `"v"` and
+#'   `"s"`. Terms shared by all accumulators are written as usual; terms inside
+#'   `acc()` are estimated separately for each accumulator, and `acc()` terms
+#'   that refer to the accumulator `.acc` compare it with a trial variable, e.g.
+#'   `v = ~ Condition + acc(.acc == Word)`. Random effects are written inside
+#'   the formulas as in lme4, e.g. `A = ~ 1 + (1 | id)`. See [acc()] and
+#'   [rdm_formula()].
 #' @param fixed Named list of parameters held constant on their natural scale,
 #'   e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not the distance.
 #'   The value can have length 1 (shared) or one value per accumulator.
 #' @param contrasts Named list of contrast matrices, passed on to
 #'   [stats::model.matrix()]. The contrasts of a term inside `acc()` are given
 #'   under its full name, e.g. `list("acc(.acc == Word)" = contr.sum)`.
-#' @param random A one-sided formula applied to every free parameter, or a named
-#'   list of one-sided formulas, one per parameter, e.g.
-#'   `list(A = ~(1 | id), t0 = ~(1 | id))`.
 #' @param prior A list with elements `sd` and `beta` giving the scale of the
 #'   half-normal prior on the random-effect standard deviations and of the
 #'   normal prior on the fixed effects. Use `NULL` for a flat prior. Weak
@@ -70,11 +69,11 @@
 #'     \item{`design`, `ranef`, `nll`, `obj`}{the underlying model pieces},
 #'   }
 #'   and the attributes needed by the S3 methods.
-#' @seealso [coef.rdm_fit()], [confint.rdm_fit()], [ranef.rdm_fit()],
-#'   [predict.rdm_fit()], [simulate.rdm_fit()]
+#' @seealso [rdm_formula()], [acc()], [coef.rdm_fit()], [confint.rdm_fit()],
+#'   [ranef.rdm_fit()], [predict.rdm_fit()], [simulate.rdm_fit()]
 #' @export
 fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
-                    random = NULL, prior = list(sd = 0.5, beta = 2),
+                    prior = list(sd = 0.5, beta = 2),
                     barrier = 1e3, control = list(), inner.control = list(),
                     start = NULL, sdreport = TRUE, contrasts = list()) {
   if (is.character(rt) && length(rt) == 1L) rt <- data[[rt]]
@@ -82,8 +81,9 @@ fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
     response <- data[[response]]
   }
 
+  formula <- as_rdm_formula(formula)
   design <- rdm_design(data, rt, response, formula, fixed, contrasts)
-  ranef <- rdm_ranef(random, data, design)
+  ranef <- rdm_ranef(design)
   nll <- rdm_nll(design, ranef, prior = prior, barrier = barrier)
 
   if (!is.null(start)) {

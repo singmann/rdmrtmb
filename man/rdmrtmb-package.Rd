@@ -7,10 +7,11 @@
 \title{rdmrtmb: Frequentist Estimation of the Racing Diffusion Model}
 \description{
 Maximum likelihood estimation of the racing diffusion model of speeded
-decision making. Every model parameter can be described by its own model
-matrix, and random effects can be specified per parameter with lme4-style
-terms such as \code{(1 | id)}. Random effects are integrated with the Laplace
-approximation using automatic differentiation provided by RTMB.
+decision making. Every model parameter is described by its own formula,
+collected with \code{\link[=rdm_formula]{rdm_formula()}}. Random effects are written inside these
+formulas with lme4-style terms such as \code{(1 | id)} or \code{(1 + Condition | id)}
+and are integrated with the Laplace approximation using automatic
+differentiation provided by RTMB.
 }
 \details{
 The drift rates of a race model necessarily differ between the accumulators:

@@ -39,7 +39,9 @@ acc <- function(x) x
 #' @param response Vector of observed responses; the sorted unique values define
 #'   the accumulators and are coded `1:K`.
 #' @param formula Named list of formulas, one per free parameter. Valid names
-#'   are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`, see the details.
+#'   are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`, see the details. Random-effect
+#'   terms such as `(1 | id)` may appear in any of the formulas; they are split
+#'   off here and read by `rdm_ranef()`.
 #' @param fixed Named list of parameters that are held constant, on their
 #'   natural scale, e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not
 #'   the threshold distance. The value can have length 1 (shared) or `K` (one
@@ -97,15 +99,22 @@ rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
   long[[".acc"]] <- rep(if (is.numeric(response)) as.numeric(levels_response) else
                           levels_response, each = n)
 
+  ## the random-effect terms are the `(term | group)` parts of the formulas;
+  ## they are kept on the side, the remaining fixed part builds the model matrix
+  ranef_terms <- lapply(formula, reformulas::findbars)
+  ranef_terms <- ranef_terms[vapply(ranef_terms, length, 1L) > 0L]
+
   design <- list(n = n, K = K, rt = rt, response = resp_idx,
                  response_levels = levels_response, data = data, long = long,
-                 formula = formula, fixed = fixed, contrasts = contrasts)
+                 formula = formula, fixed = fixed, contrasts = contrasts,
+                 ranef_terms = ranef_terms)
 
   for (par in rdm_pars) {
     design[[par]] <- if (par %in% names(fixed)) {
       fixed_spec(fixed[[par]], n, par, K)
     } else if (par %in% names(formula)) {
-      par_spec(formula[[par]], data, long, n, K, par, levels_response, contrasts)
+      par_spec(reformulas::nobars(formula[[par]]), data, long, n, K, par,
+               levels_response, contrasts)
     } else {
       NULL
     }

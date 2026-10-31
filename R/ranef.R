@@ -1,73 +1,45 @@
 # Random effects for the RDM.
 #
-# Random effects are specified per parameter with lme4-style terms such as
-# `(1 | id)` or `(1 + cond | id)`. Every term becomes its own block with a
-# Cholesky-parameterised covariance matrix, so `(1 | id) + (0 + cond | id)`
-# gives independent effects while `(1 + cond | id)` gives correlated ones.
-# Several grouping factors may be combined in one formula, which allows crossed
-# random effects.
+# Random effects are written inside the parameter formulas with lme4-style
+# terms such as `(1 | id)` or `(1 + cond | id)`. Every term becomes its own
+# block with a Cholesky-parameterised covariance matrix, so
+# `(1 | id) + (0 + cond | id)` gives independent effects while `(1 + cond | id)`
+# gives correlated ones. Several grouping factors may be combined in one
+# formula, which allows crossed random effects.
 
 #' Parse the random-effects terms of an RDM model
 #'
-#' @param random A one-sided formula (applied to every parameter) or a named
-#'   list of one-sided formulas, one per parameter. Each formula may contain
-#'   several terms, e.g. `~(1 | id) + (1 | item)`.
-#' @param data The trial-level `data.frame` of the model.
+#' The random effects are read from the `(term | group)` parts of the parameter
+#' formulas, which `rdm_design()` has already split off with
+#' `reformulas::findbars()`. A term of a parameter that is held constant is
+#' rejected.
+#'
 #' @param design An `rdm_design` object.
 #' @return An object of class `rdm_ranef`.
 #' @keywords internal
 #' @noRd
-rdm_ranef <- function(random, data, design) {
-  if (is.null(random)) return(structure(list(blocks = list(), npar = 0L),
-                                        class = c("rdm_ranef", "list")))
-  if (inherits(random, "formula")) {
-    ## a single formula applies to every free parameter of the model
-    used <- rdm_pars[vapply(rdm_pars, \(nm) !is.null(design[[nm]]) &&
-                              design[[nm]]$free, TRUE)]
-    random <- stats::setNames(rep(list(random), length(used)), used)
-  }
-  if (!is.list(random) || is.null(names(random))) {
-    stop("`random` must be a formula or a named list of formulas.", call. = FALSE)
-  }
-  unknown <- setdiff(names(random), rdm_pars)
-  if (length(unknown)) {
-    stop("unknown parameter(s) in `random`: ", paste(unknown, collapse = ", "), ".",
-         call. = FALSE)
-  }
-  for (par in names(random)) {
-    if (is.null(design[[par]])) {
-      stop("`random` specifies effects for `", par, "`, which is not part of the ",
-           "model.", call. = FALSE)
-    }
-    if (!design[[par]]$free) {
-      stop("`", par, "` is held constant, so it cannot have random effects.",
-           call. = FALSE)
-    }
+rdm_ranef <- function(design) {
+  terms <- design$ranef_terms
+  if (!length(terms)) {
+    return(structure(list(blocks = list(), npar = 0L),
+                     class = c("rdm_ranef", "list")))
   }
 
   blocks <- list()
-  for (par in names(random)) {
-    form <- random[[par]]
-    if (!inherits(form, "formula") || length(form) != 2L) {
-      stop("the random-effects formula for `", par, "` must be one-sided, e.g. ",
-           "~(1 | id).", call. = FALSE)
+  for (par in names(terms)) {
+    if (is.null(design[[par]]) || !design[[par]]$free) {
+      stop("`", par, "` is held constant, so it cannot have random effects.",
+           call. = FALSE)
     }
     ## the design matrices live on the expanded data, so the random effects are
     ## evaluated there as well
-    re_data <- design$long
-    terms <- reformulas::findbars(form)
-    if (!length(terms)) {
-      stop("the random-effects formula for `", par, "` has no `(term | group)` ",
-           "specification.", call. = FALSE)
-    }
-    for (term in terms) {
-      blocks[[length(blocks) + 1L]] <- ranef_block(term, re_data, par)
+    for (term in terms[[par]]) {
+      blocks[[length(blocks) + 1L]] <- ranef_block(term, design$long, par)
     }
   }
 
   npar <- sum(vapply(blocks, \(b) b$n_theta, 1L))
-  structure(list(blocks = blocks, npar = npar, random = random),
-            class = c("rdm_ranef", "list"))
+  structure(list(blocks = blocks, npar = npar), class = c("rdm_ranef", "list"))
 }
 
 ## one `(expr | group)` term

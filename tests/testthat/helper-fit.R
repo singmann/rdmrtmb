@@ -16,9 +16,9 @@ small_fit <- local({
     if (is.null(cached)) {
       dat <- simulate_data()
       cached <<- fit_rdm(dat, rt = "rt", response = "response",
-                         formula = list(A = ~1, b = ~1, t0 = ~1,
-                                        v = ~ acc(1)),
-                         random = list(A = ~(1 | id), t0 = ~(1 | id)))
+                         formula = rdm_formula(A = ~1 + (1 | id),
+                                               b = ~1, t0 = ~1 + (1 | id),
+                                               v = ~ acc(1)))
     }
     cached
   }
