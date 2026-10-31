@@ -35,9 +35,9 @@ acc <- function(x) x
 #'   with a trial variable.
 #'
 #' @param data A `data.frame` with one row per trial.
-#' @param rt Numeric vector of response times.
-#' @param response Vector of observed responses; the sorted unique values define
-#'   the accumulators and are coded `1:K`.
+#' @param rt,response Response times and responses. Either a vector or the name
+#'   of a column of `data`; the sorted unique responses define the accumulators
+#'   and are coded `1:K`.
 #' @param formula Named list of formulas, one per free parameter. Valid names
 #'   are `"A"`, `"b"`, `"t0"`, `"v"` and `"s"`, see the details. Random-effect
 #'   terms such as `(1 | id)`, `diag(1 + Condition | id)` or `cs(1 + Condition
@@ -58,6 +58,8 @@ acc <- function(x) x
 rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
                        contrasts = list(), anchor = list()) {
   if (!is.data.frame(data)) stop("`data` must be a data.frame.", call. = FALSE)
+  rt <- rdm_column(rt, data, "rt")
+  response <- rdm_column(response, data, "response")
   n <- nrow(data)
   if (length(rt) != n) stop("`rt` must have one value per row of `data`.", call. = FALSE)
   if (length(response) != n) {
@@ -463,4 +465,13 @@ print.rdm_design <- function(x, ...) {
     }
   }
   invisible(x)
+}
+
+## a vector, or the name of a column of `data`
+rdm_column <- function(x, data, what) {
+  if (!is.character(x) || length(x) != 1L) return(x)
+  if (!x %in% names(data)) {
+    stop("`", what, "` is a single string but not a column of `data`.", call. = FALSE)
+  }
+  data[[x]]
 }

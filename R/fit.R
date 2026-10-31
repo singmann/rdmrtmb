@@ -93,11 +93,6 @@ fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
                     barrier = 1e3, control = list(), inner.control = list(),
                     start = NULL, sdreport = TRUE, contrasts = list(),
                     anchor = list()) {
-  if (is.character(rt) && length(rt) == 1L) rt <- data[[rt]]
-  if (is.character(response) && length(response) == 1L) {
-    response <- data[[response]]
-  }
-
   formula <- as_rdm_formula(formula)
   design <- rdm_design(data, rt, response, formula, fixed, contrasts, anchor)
   ranef <- rdm_ranef(design)

@@ -26,6 +26,17 @@ test_that("a design has one model matrix per parameter", {
   expect_identical(unique(d$s$value), 1)
 })
 
+test_that("rt and response may be given by column name", {
+  f <- list(A = ~1, b = ~cond, t0 = ~1, v = ~1)
+  by_name <- rdm_design(example_data, rt = "rt", response = "resp", formula = f)
+  by_value <- rdm_design(example_data, example_data$rt, example_data$resp, formula = f)
+  expect_identical(by_name$rt, by_value$rt)
+  expect_identical(by_name$response, by_value$response)
+  ## the same for fit_rdm(), which passes the names on
+  expect_error(fit_rdm(example_data, rt = "rrt", response = "resp", formula = f),
+               "not a column of `data`")
+})
+
 test_that("acc(1) gives one intercept per accumulator", {
   d <- rdm_design(example_data, example_data$rt, example_data$resp,
                   formula = list(A = ~1, t0 = ~1, b = ~acc(1), v = ~1))
