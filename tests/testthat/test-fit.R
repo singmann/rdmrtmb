@@ -1,6 +1,6 @@
-test_that("fit_rdm returns a fitted object without random effects", {
+test_that("rdm_fit returns a fitted object without random effects", {
   dat <- simulate_data(seed = 3)
-  f <- fit_rdm(dat, rt = "rt", response = "response",
+  f <- rdm_fit(dat, rt = "rt", response = "response",
                formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
   expect_s3_class(f, "rdm_fit")
   expect_true(f$converged)
@@ -20,7 +20,7 @@ test_that("fit_rdm returns a fitted object without random effects", {
 
 test_that("a model without start-point variability can be fitted", {
   dat <- simulate_data(seed = 5)
-  f <- fit_rdm(dat, rt = "rt", response = "response",
+  f <- rdm_fit(dat, rt = "rt", response = "response",
                formula = list(t0 = ~1, b = ~1, v = ~ acc(1)))
   expect_true(f$converged)
   expect_named(f$beta, c("b:(Intercept)", "t0:(Intercept)", "v[1]:(Intercept)",
@@ -45,13 +45,13 @@ test_that("a model without start-point variability can be fitted", {
                tolerance = 1e-6)
 
   ## fixing A at zero is the same model as leaving it out
-  fixed_zero <- fit_rdm(dat, rt = "rt", response = "response",
+  fixed_zero <- rdm_fit(dat, rt = "rt", response = "response",
                         formula = list(t0 = ~1, b = ~1, v = ~ acc(1)),
                         fixed = list(A = 0), sdreport = FALSE)
   expect_equal(coef(fixed_zero), coef(f), tolerance = 1e-6)
 })
 
-test_that("fit_rdm estimates random effects", {
+test_that("rdm_fit estimates random effects", {
   f <- small_fit()
   expect_true(f$converged)
   expect_length(f$theta, 2)
@@ -63,15 +63,15 @@ test_that("fit_rdm estimates random effects", {
 
 test_that("starting values can be supplied and are checked", {
   dat <- simulate_data(seed = 4)
-  f <- fit_rdm(dat, rt = "rt", response = "response",
+  f <- rdm_fit(dat, rt = "rt", response = "response",
                formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)),
                start = c("t0:(Intercept)" = log(0.3)))
-  plain <- fit_rdm(dat, rt = "rt", response = "response",
+  plain <- rdm_fit(dat, rt = "rt", response = "response",
                    formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)))
   expect_true(f$converged)
   expect_equal(coef(f), coef(plain), tolerance = 1e-3)
   expect_error(
-    fit_rdm(dat, rt = "rt", response = "response",
+    rdm_fit(dat, rt = "rt", response = "response",
             formula = list(A = ~1, b = ~1, t0 = ~1, v = ~ acc(1)),
             start = c(nope = 1)),
     "unknown name"
@@ -81,19 +81,19 @@ test_that("starting values can be supplied and are checked", {
 test_that("a fit can be restarted from a previous fit", {
   dat <- simulate_data(seed = 6)
   fml <- rdm_formula(A = ~1 + (1 | id), b = ~1, t0 = ~1, v = ~ acc(1))
-  first <- fit_rdm(dat, rt = "rt", response = "response", formula = fml)
+  first <- rdm_fit(dat, rt = "rt", response = "response", formula = fml)
   ## restarting from a converged fit takes a couple of iterations at most
-  again <- fit_rdm(dat, rt = "rt", response = "response", formula = fml,
+  again <- rdm_fit(dat, rt = "rt", response = "response", formula = fml,
                    start = first, sdreport = FALSE)
   expect_true(again$converged)
   expect_equal(coef(again), coef(first), tolerance = 1e-4)
   expect_equal(again$theta, first$theta, tolerance = 1e-4)
   expect_lt(again$opt$iterations, first$opt$iterations)
   ## a list with the pieces works too, and wrong lengths are caught
-  expect_silent(fit_rdm(dat, rt = "rt", response = "response", formula = fml,
+  expect_silent(rdm_fit(dat, rt = "rt", response = "response", formula = fml,
                         start = list(beta = first$beta, theta = first$theta),
                         sdreport = FALSE))
-  expect_error(fit_rdm(dat, rt = "rt", response = "response", formula = fml,
+  expect_error(rdm_fit(dat, rt = "rt", response = "response", formula = fml,
                        start = list(theta = c(first$theta, 0)), sdreport = FALSE),
                "values but the model has")
 })
@@ -101,7 +101,7 @@ test_that("a fit can be restarted from a previous fit", {
 test_that("a model with covariates on the drift rates can be fitted", {
   dat <- simulate_data(seed = 5)
   dat$cond <- factor(rep(c("a", "b", "c"), length.out = nrow(dat)))
-  f <- fit_rdm(dat, rt = "rt", response = "response",
+  f <- rdm_fit(dat, rt = "rt", response = "response",
                formula = list(A = ~1, b = ~1, t0 = ~1, v = ~cond))
   expect_true(f$converged)
   expect_true(any(grepl("cond", names(f$beta))))
@@ -117,7 +117,7 @@ test_that("thresholds can differ between accumulators", {
   draw <- rdm_rand_race(pars)
   dat <- data.frame(rt = draw$rt, response = draw$response)
 
-  f <- fit_rdm(dat, rt = "rt", response = "response",
+  f <- rdm_fit(dat, rt = "rt", response = "response",
                formula = list(A = ~1, t0 = ~1, b = ~ acc(1),
                               v = ~ acc(1)))
   ce <- coef(f, type = "ratio")
@@ -162,7 +162,7 @@ test_that("the extreme eigenvalues of the outer Hessian are reported", {
   expect_equal(summary(f)$outer_eig, f$outer_eig)
 
   ## the covariance from sdreport() inverts to the hessian
-  f2 <- fit_rdm(dat, rt = "rt", response = "response",
+  f2 <- rdm_fit(dat, rt = "rt", response = "response",
                 formula = rdm_formula(A = ~1 + (1 | id), b = ~1, t0 = ~1,
                                       v = ~ acc(1)))
   ev <- 1 / eigen(as.matrix(f2$sd$cov.fixed), symmetric = TRUE,
@@ -171,7 +171,7 @@ test_that("the extreme eigenvalues of the outer Hessian are reported", {
                min(ev) / max(ev))
 
   ## without sdreport() there is no outer Hessian
-  f3 <- fit_rdm(dat, rt = "rt", response = "response",
+  f3 <- rdm_fit(dat, rt = "rt", response = "response",
                 formula = rdm_formula(A = ~1 + (1 | id), b = ~1, t0 = ~1,
                                       v = ~ acc(1)),
                 sdreport = FALSE)

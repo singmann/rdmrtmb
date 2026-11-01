@@ -15,7 +15,7 @@ small_fit <- local({
   function() {
     if (is.null(cached)) {
       dat <- simulate_data()
-      cached <<- fit_rdm(dat, rt = "rt", response = "response",
+      cached <<- rdm_fit(dat, rt = "rt", response = "response",
                          formula = rdm_formula(A = ~1 + (1 | id),
                                                b = ~1, t0 = ~1 + (1 | id),
                                                v = ~ acc(1)))
@@ -29,7 +29,7 @@ plain_fit <- local({
   function() {
     if (is.null(cached)) {
       dat <- simulate_data(seed = 2)
-      cached <<- fit_rdm(dat, rt = dat$rt, response = dat$response,
+      cached <<- rdm_fit(dat, rt = dat$rt, response = dat$response,
                          formula = list(A = ~1, b = ~1, t0 = ~1,
                                         v = ~ acc(1)))
     }

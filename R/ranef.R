@@ -87,7 +87,7 @@ rdm_ranef_terms <- function(form) {
 #'   with its design matrix `Z`, the grouping index, the number of effects `q`,
 #'   the covariance structure `struct` and the number of covariance parameters
 #'   `n_theta`.
-#' @seealso [fit_rdm()], [rdm_design()]
+#' @seealso [rdm_fit()], [rdm_design()]
 #' @export
 rdm_ranef <- function(design) {
   terms <- design$ranef_terms

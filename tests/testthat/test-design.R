@@ -32,8 +32,8 @@ test_that("rt and response may be given by column name", {
   by_value <- rdm_design(example_data, example_data$rt, example_data$resp, formula = f)
   expect_identical(by_name$rt, by_value$rt)
   expect_identical(by_name$response, by_value$response)
-  ## the same for fit_rdm(), which passes the names on
-  expect_error(fit_rdm(example_data, rt = "rrt", response = "resp", formula = f),
+  ## the same for rdm_fit(), which passes the names on
+  expect_error(rdm_fit(example_data, rt = "rrt", response = "resp", formula = f),
                "not a column of `data`")
 })
 

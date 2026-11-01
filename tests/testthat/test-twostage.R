@@ -7,7 +7,7 @@ test_that("per-subject fits give a usable starting point", {
                           id = "id")
   expect_s3_class(st, "rdm_start")
   expect_named(st, c("beta", "theta", "u"))
-  fit <- fit_rdm(dat, rt = "rt", response = "response", formula = fml)
+  fit <- rdm_fit(dat, rt = "rt", response = "response", formula = fml)
   expect_named(st$beta, names(fit$beta))
   expect_length(st$theta, length(fit$theta))
   expect_true(all(is.finite(c(st$beta, st$theta))))
@@ -20,9 +20,9 @@ test_that("per-subject fits give a usable starting point", {
 test_that("a hierarchical fit starts from those values", {
   st <- rdm_subject_start(dat, rt = "rt", response = "response", formula = fml,
                           id = dat$id)
-  warm <- fit_rdm(dat, rt = "rt", response = "response", formula = fml,
+  warm <- rdm_fit(dat, rt = "rt", response = "response", formula = fml,
                   start = st, sdreport = FALSE)
-  cold <- fit_rdm(dat, rt = "rt", response = "response", formula = fml,
+  cold <- rdm_fit(dat, rt = "rt", response = "response", formula = fml,
                   sdreport = FALSE)
   expect_true(warm$converged)
   expect_equal(coef(warm), coef(cold), tolerance = 1e-3)

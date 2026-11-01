@@ -104,7 +104,7 @@ in which `A`, `b` and `v` are expressed. For the same reason `s` can only be
 ## Specifying a model
 
 A model is a named list of one-sided formulas, one per parameter, collected
-either with `rdm_formula()` or as a plain named list, which `fit_rdm()` accepts
+either with `rdm_formula()` or as a plain named list, which `rdm_fit()` accepts
 too. The examples below use the MSIT
 data that ships with the package (described below): one participant for the
 trial-level examples and all ten that the worked example uses where random
@@ -129,6 +129,15 @@ The right-hand side is an ordinary R formula, so factors, interactions, `0` to
 remove the intercept and `contrasts` all work as in `lm()`. The response times
 and the responses are given either as vectors or, as here, as the names of
 columns of the data. What is special is `acc()`.
+
+To see what a formula actually asks for, pass the same arguments to
+`rdm_design()`. It expands the data to one row per trial and accumulator, builds
+the piece of model matrix that each parameter gets, and prints the distinct rows
+of those matrices next to the variables that produced them. Nothing is fitted,
+so it is a cheap way to check a model before committing to an optimisation, and
+the examples below use it for that. It also reports the rank problems it can
+detect, such as a free scale with nothing to pin it down. `rdm_fit()` builds the
+same design internally.
 
 ### The accumulator: `acc()`
 
@@ -309,7 +318,7 @@ uses the first 10 participants of session 1.
 A single participant first, to see the parameters without the random effects:
 
 ```{r single}
-fit_one <- fit_rdm(one, rt = "RT", response = "R",
+fit_one <- rdm_fit(one, rt = "RT", response = "R",
                    formula = rdm_formula(A = ~ 1, t0 = ~ 1, b = ~ 1, v = ~ acc(1)))
 summary(fit_one)$coefficients
 
@@ -335,7 +344,7 @@ msit_model <- rdm_formula(
     acc(.acc == simon_resp) + (1 | subject)
 )
 
-fit <- fit_rdm(dat, rt = "RT", response = "R", formula = msit_model)
+fit <- rdm_fit(dat, rt = "RT", response = "R", formula = msit_model)
 summary(fit)
 ```
 
@@ -364,14 +373,14 @@ participants.
 The Laplace approximation is expensive because every evaluation optimises the
 random effects. Two features help. `rdm_subject_start()` fits the same
 fixed-effect model to each participant separately, which takes a fraction of a
-second per participant, and hands the result to `fit_rdm()` as starting values:
+second per participant, and hands the result to `rdm_fit()` as starting values:
 
 ```{r start}
 st <- rdm_subject_start(dat, rt = "RT", response = "R", id = "subject",
                         formula = msit_model)
 st
 
-fit_start <- fit_rdm(dat, rt = "RT", response = "R", formula = msit_model,
+fit_start <- rdm_fit(dat, rt = "RT", response = "R", formula = msit_model,
                      start = st)
 c(cold = logLik(fit), warm = logLik(fit_start))
 ```
@@ -391,7 +400,7 @@ v_support <- ~ 1 + acc(.acc == target_resp) + acc(.acc == flanker_resp) +
   diag(0 + acc(.acc == target_resp) + acc(.acc == flanker_resp) +
          acc(.acc == simon_resp) | subject)
 
-fit_diag <- fit_rdm(dat, rt = "RT", response = "R",
+fit_diag <- rdm_fit(dat, rt = "RT", response = "R",
                     formula = rdm_formula(
                       A = ~ 1 + (1 | subject), b = ~ 1 + (1 | subject),
                       t0 = ~ 1 + (1 | subject), v = v_support))

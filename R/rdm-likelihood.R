@@ -2,7 +2,7 @@
 #
 # The functions in this file are written so that they can be taped by RTMB:
 # only vectorised operations supporting automatic differentiation are used.
-# They are internal; the user-facing interface is fit_rdm().
+# They are internal; the user-facing interface is rdm_fit().
 
 #' Log-density of a single accumulator of the RDM
 #'

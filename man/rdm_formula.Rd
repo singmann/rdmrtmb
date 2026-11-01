@@ -16,7 +16,7 @@ An object of class \code{rdm_formula}, a named list of formulas.
 }
 \description{
 Collects one formula per model parameter and is the \code{formula} argument of
-\code{\link[=fit_rdm]{fit_rdm()}}. Every formula has two parts:
+\code{\link[=rdm_fit]{rdm_fit()}}. Every formula has two parts:
 }
 \details{
 \itemize{
@@ -38,13 +38,13 @@ from the singular boundary by the prior on the covariance parameters.
 A parameter that is left out takes its default: no start-point variability
 (\code{A = 0}), a threshold one unit above the start point (\code{b = A + 1}) and no
 drift-rate bias. \code{v} is required, because the drift rates are what drives
-the race. \code{s} is fixed to 1 by \code{\link[=fit_rdm]{fit_rdm()}} unless a formula is given for it.
+the race. \code{s} is fixed to 1 by \code{\link[=rdm_fit]{rdm_fit()}} unless a formula is given for it.
 A free \code{s} needs the scale of the model pinned down: with \code{s = ~ acc(1)} the
 diffusion constant of the first response level is held at 1 and the others
-are estimated relative to it (see the \code{anchor} argument of \code{\link[=fit_rdm]{fit_rdm()}}),
+are estimated relative to it (see the \code{anchor} argument of \code{\link[=rdm_fit]{rdm_fit()}}),
 and a formula that leaves an accumulator out, e.g.
 \code{s = ~ 0 + acc(.acc != "Word")}, fixes that one instead.
 }
 \seealso{
-\code{\link[=fit_rdm]{fit_rdm()}}, \code{\link[=acc]{acc()}}
+\code{\link[=rdm_fit]{rdm_fit()}}, \code{\link[=acc]{acc()}}
 }

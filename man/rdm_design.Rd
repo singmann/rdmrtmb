@@ -38,7 +38,7 @@ value per accumulator).}
 its full name, e.g. \code{list("acc(.acc == Word)" = contr.sum)}.}
 
 \item{anchor}{Named list choosing which accumulator the diffusion constant
-\code{s} is anchored at, e.g. \code{list(s = "Word")}, see \code{\link[=fit_rdm]{fit_rdm()}}.}
+\code{s} is anchored at, e.g. \code{list(s = "Word")}, see \code{\link[=rdm_fit]{rdm_fit()}}.}
 }
 \value{
 An object of class \code{rdm_design}, a list with the model matrix \code{X} and
@@ -62,5 +62,5 @@ with a trial variable.
 }
 }
 \seealso{
-\code{\link[=fit_rdm]{fit_rdm()}}, \code{\link[=acc]{acc()}}, \code{\link[=rdm_formula]{rdm_formula()}}
+\code{\link[=rdm_fit]{rdm_fit()}}, \code{\link[=acc]{acc()}}, \code{\link[=rdm_formula]{rdm_formula()}}
 }

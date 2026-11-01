@@ -25,5 +25,5 @@ structure, which is a quick way to check how many covariance parameters a
 model has.
 }
 \seealso{
-\code{\link[=fit_rdm]{fit_rdm()}}, \code{\link[=rdm_design]{rdm_design()}}
+\code{\link[=rdm_fit]{rdm_fit()}}, \code{\link[=rdm_design]{rdm_design()}}
 }

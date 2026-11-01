@@ -33,7 +33,7 @@ test_that("emmeans uses the contrasts of the fit", {
   dat$cond <- factor(rep(c("a", "b"), length.out = nrow(dat)))
   old <- options(contrasts = c("contr.sum", "contr.poly"))
   on.exit(options(old), add = TRUE)
-  f <- fit_rdm(dat, rt = "rt", response = "response",
+  f <- rdm_fit(dat, rt = "rt", response = "response",
                formula = list(A = ~1, b = ~1, t0 = ~1,
                               v = ~ cond + acc(.acc == 2)))
   ## the contrasts in force change after the fit; the reference grid must still

@@ -108,7 +108,7 @@
 #' @seealso [rdm_formula()], [acc()], [coef.rdm_fit()], [confint.rdm_fit()],
 #'   [ranef.rdm_fit()], [predict.rdm_fit()], [simulate.rdm_fit()]
 #' @export
-fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
+rdm_fit <- function(data, rt, response, formula, fixed = list(s = 1),
                     prior = list(sd = 0.5, beta = 2),
                     barrier = 1e3, control = list(), inner.control = list(),
                     start = NULL, sdreport = TRUE, contrasts = list(),

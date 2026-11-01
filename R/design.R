@@ -10,7 +10,7 @@ rdm_pars <- c("A", "b", "t0", "v", "s")
 
 #' Mark a term as a property of the accumulator
 #'
-#' Used inside the formulas of [fit_rdm()]. `acc(1)` gives one intercept per
+#' Used inside the formulas of [rdm_fit()]. `acc(1)` gives one intercept per
 #' accumulator, and `acc(x)` estimates the effect of `x` separately for each
 #' accumulator. The current accumulator is available inside `acc()` as `.acc`,
 #' which allows comparisons with trial variables: `acc(.acc == Word)` is one
@@ -53,13 +53,13 @@ acc <- function(x) x
 #'   [stats::model.matrix()]. Contrasts of a term inside `acc()` are given under
 #'   its full name, e.g. `list("acc(.acc == Word)" = contr.sum)`.
 #' @param anchor Named list choosing which accumulator the diffusion constant
-#'   `s` is anchored at, e.g. `list(s = "Word")`, see [fit_rdm()].
+#'   `s` is anchored at, e.g. `list(s = "Word")`, see [rdm_fit()].
 #' @return An object of class `rdm_design`, a list with the model matrix `X` and
 #'   the coefficient names of every parameter, next to the data and the
 #'   accumulator variables. Printing it shows the unique rows of each model
 #'   matrix next to the variables of its formula, which is the quickest way to
 #'   check what a formula does before fitting it.
-#' @seealso [fit_rdm()], [acc()], [rdm_formula()]
+#' @seealso [rdm_fit()], [acc()], [rdm_formula()]
 #' @export
 rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
                        contrasts = list(), anchor = list()) {

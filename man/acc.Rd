@@ -14,7 +14,7 @@ acc(x)
 are built.
 }
 \description{
-Used inside the formulas of \code{\link[=fit_rdm]{fit_rdm()}}. \code{acc(1)} gives one intercept per
+Used inside the formulas of \code{\link[=rdm_fit]{rdm_fit()}}. \code{acc(1)} gives one intercept per
 accumulator, and \code{acc(x)} estimates the effect of \code{x} separately for each
 accumulator. The current accumulator is available inside \code{acc()} as \code{.acc},
 which allows comparisons with trial variables: \code{acc(.acc == Word)} is one

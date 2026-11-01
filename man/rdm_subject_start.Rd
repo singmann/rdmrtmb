@@ -65,7 +65,7 @@ other.}
 
 \item{control}{List of control arguments passed to \code{\link[stats:nlminb]{stats::nlminb()}}.}
 
-\item{...}{Further arguments passed on to \code{\link[=fit_rdm]{fit_rdm()}} for the per-subject
+\item{...}{Further arguments passed on to \code{\link[=rdm_fit]{rdm_fit()}} for the per-subject
 fits.}
 }
 \value{
@@ -77,7 +77,7 @@ fits in the \code{fits} attribute.
 \description{
 Fits the same fixed-effect model to each subject separately, with the
 random-effect terms removed, and summarises the resulting group distribution.
-The result can be passed as the \code{start} argument of \code{\link[=fit_rdm]{fit_rdm()}}, which saves
+The result can be passed as the \code{start} argument of \code{\link[=rdm_fit]{rdm_fit()}}, which saves
 a lot of time on larger models: an independent fit takes a fraction of a
 second, whereas every evaluation of the hierarchical likelihood can take
 seconds.
@@ -94,5 +94,5 @@ covariate that only varies between subjects, or that not every subject could
 estimate, keep their default start.
 }
 \seealso{
-\code{\link[=fit_rdm]{fit_rdm()}}
+\code{\link[=rdm_fit]{rdm_fit()}}
 }

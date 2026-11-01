@@ -7,7 +7,7 @@
 #'
 #' Fits the same fixed-effect model to each subject separately, with the
 #' random-effect terms removed, and summarises the resulting group distribution.
-#' The result can be passed as the `start` argument of [fit_rdm()], which saves
+#' The result can be passed as the `start` argument of [rdm_fit()], which saves
 #' a lot of time on larger models: an independent fit takes a fraction of a
 #' second, whereas every evaluation of the hierarchical likelihood can take
 #' seconds.
@@ -22,7 +22,7 @@
 #' covariate that only varies between subjects, or that not every subject could
 #' estimate, keep their default start.
 #'
-#' @inheritParams fit_rdm
+#' @inheritParams rdm_fit
 #' @param id The grouping variable, i.e. the variable a random effect is
 #'   grouped by: a vector, or the name of a column of `data`.
 #' @param prior The prior for the per-subject fits. The weak prior on the fixed
@@ -31,13 +31,13 @@
 #'   likelihood can have degenerate maxima when a subject has few trials, where
 #'   a large start-point range, threshold and drift rate trade off against each
 #'   other.
-#' @param ... Further arguments passed on to [fit_rdm()] for the per-subject
+#' @param ... Further arguments passed on to [rdm_fit()] for the per-subject
 #'   fits.
 #' @return An object of class `rdm_start`, a list with the elements `beta`,
 #'   `theta` and `u`, or as many of them as the model has. The per-subject
 #'   coefficient matrix is stored in the `coef` attribute, and the per-subject
 #'   fits in the `fits` attribute.
-#' @seealso [fit_rdm()]
+#' @seealso [rdm_fit()]
 #' @export
 rdm_subject_start <- function(data, rt, response, formula, id,
                               fixed = list(s = 1), contrasts = list(),
@@ -58,7 +58,7 @@ rdm_subject_start <- function(data, rt, response, formula, id,
   fit_one <- function(i) {
     tryCatch(
       suppressWarnings(
-        fit_rdm(data[i, , drop = FALSE], rt = rt[i], response = response[i],
+        rdm_fit(data[i, , drop = FALSE], rt = rt[i], response = response[i],
                 formula = sub_formula, fixed = fixed, contrasts = contrasts,
                 anchor = anchor, prior = prior, control = control,
                 sdreport = FALSE, ...)
@@ -70,7 +70,7 @@ rdm_subject_start <- function(data, rt, response, formula, id,
   ok <- !vapply(fits, is.null, TRUE)
   if (sum(ok) < 2L) {
     stop("fewer than two subjects could be fitted; try fitting one subject ",
-         "with fit_rdm() to see the error.", call. = FALSE)
+         "with rdm_fit() to see the error.", call. = FALSE)
   }
 
   ## the hierarchical model decides which coefficients and which blocks exist

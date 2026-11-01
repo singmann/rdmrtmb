@@ -4,7 +4,7 @@
 #' Model formulas for the RDM
 #'
 #' Collects one formula per model parameter and is the `formula` argument of
-#' [fit_rdm()]. Every formula has two parts:
+#' [rdm_fit()]. Every formula has two parts:
 #'
 #' * the fixed effects, which may contain [acc()] terms, e.g.
 #'   `v = ~ Condition + acc(.acc == Word)`;
@@ -23,10 +23,10 @@
 #' A parameter that is left out takes its default: no start-point variability
 #' (`A = 0`), a threshold one unit above the start point (`b = A + 1`) and no
 #' drift-rate bias. `v` is required, because the drift rates are what drives
-#' the race. `s` is fixed to 1 by [fit_rdm()] unless a formula is given for it.
+#' the race. `s` is fixed to 1 by [rdm_fit()] unless a formula is given for it.
 #' A free `s` needs the scale of the model pinned down: with `s = ~ acc(1)` the
 #' diffusion constant of the first response level is held at 1 and the others
-#' are estimated relative to it (see the `anchor` argument of [fit_rdm()]),
+#' are estimated relative to it (see the `anchor` argument of [rdm_fit()]),
 #' and a formula that leaves an accumulator out, e.g.
 #' `s = ~ 0 + acc(.acc != "Word")`, fixes that one instead.
 #'
@@ -34,14 +34,14 @@
 #'   `NULL` for a parameter that is left out of the model. A two-sided formula
 #'   such as `y ~ 1` is accepted and only its right-hand side is used.
 #' @return An object of class `rdm_formula`, a named list of formulas.
-#' @seealso [fit_rdm()], [acc()]
+#' @seealso [rdm_fit()], [acc()]
 #' @export
 rdm_formula <- function(A = NULL, b = NULL, t0 = NULL, v = NULL, s = NULL) {
   args <- list(A = A, b = b, t0 = t0, v = v, s = s)
   as_rdm_formula(args[!vapply(args, is.null, TRUE)])
 }
 
-## normalise the formula argument of fit_rdm(): an `rdm_formula`, a named list
+## normalise the formula argument of rdm_fit(): an `rdm_formula`, a named list
 ## of formulas, or nothing
 as_rdm_formula <- function(x) {
   if (inherits(x, "rdm_formula")) return(x)
