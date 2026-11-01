@@ -5,9 +5,10 @@
 \alias{msit}
 \title{Multi-source interference task (MSIT) data}
 \format{
-A data frame with 37,720 rows and 9 variables:
+A data frame with 40,974 rows and 9 variables:
 \describe{
-\item{subject}{Factor, participant identifier (79 participants).}
+\item{subject}{Factor, participant identifier (86 participants, as in the
+paper).}
 \item{session}{Factor, session of testing, \code{"1"} or \code{"2"}.}
 \item{condition}{Factor, the five trial types: \code{"1_none"} (neither
 interference), \code{"2_simon"} (Simon interference only), \code{"3_flanker"}

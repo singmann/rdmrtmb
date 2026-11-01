@@ -8,9 +8,10 @@
 #' left-to-right array. The five trial types cross the two sources, following
 #' the adapted MSIT design described in Appendix 1 of Stevenson et al. (2024).
 #'
-#' @format A data frame with 37,720 rows and 9 variables:
+#' @format A data frame with 40,974 rows and 9 variables:
 #' \describe{
-#'   \item{subject}{Factor, participant identifier (79 participants).}
+#'   \item{subject}{Factor, participant identifier (86 participants, as in the
+#'     paper).}
 #'   \item{session}{Factor, session of testing, `"1"` or `"2"`.}
 #'   \item{condition}{Factor, the five trial types: `"1_none"` (neither
 #'     interference), `"2_simon"` (Simon interference only), `"3_flanker"`
