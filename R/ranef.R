@@ -77,12 +77,18 @@ rdm_ranef_terms <- function(form) {
 #' The random effects are read from the `(term | group)` parts of the parameter
 #' formulas, which `rdm_design()` has already split off with
 #' `reformulas::findbars()`. A term of a parameter that is held constant is
-#' rejected.
+#' rejected. Printing the result shows every block with its grouping factor, the
+#' number of levels, the number of effects in the block and its covariance
+#' structure, which is a quick way to check how many covariance parameters a
+#' model has.
 #'
 #' @param design An `rdm_design` object.
-#' @return An object of class `rdm_ranef`.
-#' @keywords internal
-#' @noRd
+#' @return An object of class `rdm_ranef`, a list with one block per term, each
+#'   with its design matrix `Z`, the grouping index, the number of effects `q`,
+#'   the covariance structure `struct` and the number of covariance parameters
+#'   `n_theta`.
+#' @seealso [fit_rdm()], [rdm_design()]
+#' @export
 rdm_ranef <- function(design) {
   terms <- design$ranef_terms
   if (!length(terms)) {

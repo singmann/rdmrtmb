@@ -52,9 +52,15 @@ acc <- function(x) x
 #' @param contrasts Named list of contrast matrices, passed on to
 #'   [stats::model.matrix()]. Contrasts of a term inside `acc()` are given under
 #'   its full name, e.g. `list("acc(.acc == Word)" = contr.sum)`.
-#' @return An object of class `rdm_design`.
-#' @keywords internal
-#' @noRd
+#' @param anchor Named list choosing which accumulator the diffusion constant
+#'   `s` is anchored at, e.g. `list(s = "Word")`, see [fit_rdm()].
+#' @return An object of class `rdm_design`, a list with the model matrix `X` and
+#'   the coefficient names of every parameter, next to the data and the
+#'   accumulator variables. Printing it shows the unique rows of each model
+#'   matrix next to the variables of its formula, which is the quickest way to
+#'   check what a formula does before fitting it.
+#' @seealso [fit_rdm()], [acc()], [rdm_formula()]
+#' @export
 rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
                        contrasts = list(), anchor = list()) {
   if (!is.data.frame(data)) stop("`data` must be a data.frame.", call. = FALSE)

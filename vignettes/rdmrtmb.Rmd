@@ -1,0 +1,478 @@
+---
+title: "The racing diffusion model in rdmrtmb"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{The racing diffusion model in rdmrtmb}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+options(width = 95)
+library(rdmrtmb)
+```
+
+## The model
+
+The racing diffusion model (RDM) describes a choice between $K$ alternatives as
+a race between $K$ independent accumulators. Each accumulator integrates noisy
+evidence with drift rate $v_k$ from a start point towards a threshold $b_k$. The
+accumulator that reaches its threshold first determines both the response and
+the response time: the observed response time is the finishing time of the
+winner plus a non-decision time $t_0$.
+
+The evidence for accumulator $k$ is a diffusion process with diffusion constant
+$s$ (the standard deviation of the noise). Starting from a fixed point $x$, the
+time to first reach the threshold follows an inverse Gaussian distribution, and
+the RDM assumes the start point to be uniformly distributed on $[0, A_k]$. The
+density of the decision time $t$ of accumulator $k$ is the inverse-Gaussian
+density averaged over those start points, which has the closed form
+$$
+f_k(t) = \frac{v_k t \left[\Phi(z_{b}) - \Phi(z_{a})\right] +
+  \sqrt{t}\left[\phi(z_{a}) - \phi(z_{b})\right]}{A_k\, t},
+\qquad
+z_{b} = \frac{b_k - v_k t}{\sqrt{t}},\quad
+z_{a} = \frac{b_k - A_k - v_k t}{\sqrt{t}},
+$$
+where $\Phi$ and $\phi$ are the standard normal distribution and density, and
+$S_k(t) = 1 - \int_0^t f_k(u)\,du$ is the probability that accumulator $k$ has
+not finished by time $t$. Because the accumulators race independently, the
+likelihood of a trial with response $j$ at response time $RT$ is
+
+$$
+L = f_j(t)\,\prod_{k \neq j} S_k(t),
+\qquad t = RT - t_0 .
+$$
+
+Rounding $t$ up to be positive would bias the estimates, so times shorter than
+$t_0$ are instead penalised smoothly: an observation with $RT < t_0$ is
+impossible, and the fit should move away from it rather than be told that it has
+probability zero.
+
+| parameter | meaning |
+|---|---|
+| `A` | upper bound of the start point, uniform on $[0, A]$; bigger values mean more trial-to-trial variability between accumulators and slower choices |
+| `b` | response threshold; the distance $b - A$ is how much evidence has to be collected |
+| `t0` | non-decision time, added to the winning accumulator's finishing time |
+| `v` | drift rate, i.e. the quality of the evidence for an accumulator; one value per accumulator, and the only parameter needed to make a choice possible |
+| `s` | diffusion constant, the noise in the evidence; it scales $A$, $b$ and $v$ at once |
+
+Random effects (below) make all five parameters vary across participants,
+items or other grouping variables.
+
+## The parametrisation
+
+All free model parameters are positive, so `rdmrtmb` estimates them through a
+log link:
+
+* `A` and `t0` are $\exp(\eta)$, so their coefficients are on the log scale and
+  a coefficient of 0 gives a parameter of 1;
+* `v` is $\exp(\eta)$ as well;
+* `b` is *not* estimated directly but as a distance above the start point:
+  $b = A + \exp(\eta_b)$, which guarantees $b > A$ and keeps the likelihood well
+  defined. Its coefficients therefore describe the log distance between the
+  threshold and the upper bound of the start point, not the threshold itself.
+
+Two consequences are worth keeping in mind when reading estimates:
+
+* Coefficients are on the log scale, so they are interpreted like log odds: an
+  effect of 0.7 multiplies the parameter by $\exp(0.7) \approx 2$.
+  `coef(fit, type = "ratio")` gives $\exp()$ of each coefficient, which is the
+  factor by which a parameter changes for a one-unit change in its covariate.
+  It is not the parameter itself unless all of that parameter's other
+  covariates are zero and no accumulator-specific terms apply.
+* To get the parameters that the model actually uses on each trial, including
+  the random effects, use `fitted(fit)`; the threshold there is $b$ itself.
+
+A parameter that is left out of the formula takes a fixed default: `b = A + 1`,
+`t0 = 0` and `s = 1`. `A` defaults to 0 (no start-point variability), which the
+likelihood does not support, so give `A` a formula such as `A = ~ 1`, or fix it
+to a positive value. `v` has no default, because without drift rates there is no
+race. Parameters can be held constant at a chosen positive value with `fixed`,
+which is interpreted on the natural scale: `fixed = list(A = 0.5)` fixes the
+start-point bound at 0.5, and a fixed `b` is the threshold itself.
+
+The diffusion constant `s` is fixed at 1 by default. That is not a restriction
+in practice: `s` only scales the model, so setting it to 1 just chooses the unit
+in which `A`, `b` and `v` are expressed. For the same reason `s` can only be
+*free* when the scale is pinned down somewhere else, which `rdm_design()` checks
+(see the end of the next section).
+
+## Specifying a model
+
+A model is a named list of one-sided formulas, one per parameter, collected
+either with `rdm_formula()` or as a plain named list, which `fit_rdm()` accepts
+too. The examples below use the MSIT
+data that ships with the package (described below): one participant for the
+trial-level examples and all ten that the worked example uses where random
+effects are involved.
+
+```{r data}
+msit1 <- droplevels(subset(msit, session == "1"))
+ids <- levels(msit1$subject)[1:10]
+dat <- droplevels(subset(msit1, subject %in% ids))
+one <- droplevels(subset(dat, subject == ids[1]))
+## both sessions, for the designs that use `session`
+dat2 <- droplevels(subset(msit, subject %in% ids))
+c(trials_ten = nrow(dat), trials_one = nrow(one))
+```
+
+```{r formula-forms}
+model <- rdm_formula(A = ~ 1, t0 = ~ 1, b = ~ 1, v = ~ acc(1))
+model
+```
+
+The right-hand side is an ordinary R formula, so factors, interactions, `0` to
+remove the intercept and `contrasts` all work as in `lm()`. The response times
+and the responses are given either as vectors or, as here, as the names of
+columns of the data. What is special is `acc()`.
+
+### The accumulator: `acc()`
+
+A term without `acc()` is shared by all accumulators: `t0 = ~ 1` gives one
+non-decision time for all of them, and `v = ~ condition` gives the same
+condition effect on every drift rate. `acc()` makes a term accumulator-specific
+in one of two ways.
+
+**1. `acc(1)` and `acc(x)`: one coefficient per accumulator.** `acc(1)` gives
+one intercept per accumulator. For the threshold this is a response bias:
+accumulators with a smaller threshold distance are more likely to win.
+`acc(x)` estimates the effects of `x` separately for each accumulator, and it
+brings its own intercepts along.
+
+```{r acc-intercept}
+rdm_design(one, rt = "RT", response = "R",
+           formula = list(A = ~ 1, t0 = ~ 1, b = ~ acc(1), v = ~ 1))
+```
+
+The printed design shows the unique rows of each model matrix next to the
+variables that produced them, so `b[2]:(Intercept)` is the threshold distance of
+accumulator 2 and is 1 in those rows only.
+
+Because `acc(x)` already contains the intercepts of each accumulator, adding
+`acc(1)` on top of it is redundant, and the fit stops with a rank-deficiency
+error saying so. The same is true for a shared term that the per-accumulator
+terms span, e.g. `v = ~ condition + acc(condition)`.
+
+**2. `acc(.acc == x)`: one predictor that compares the accumulator with a trial
+variable.** Inside `acc()` the current accumulator is available as `.acc`, so
+`.acc == target_resp` is a single 0/1 column that is 1 where the accumulator is
+the response supported by the target. This is how accumulator-relative
+predictors are written, and it is the main reason `acc()` exists: the drift rate
+of an accumulator then depends on its relation to the trial, not on its label.
+
+```{r acc-relative}
+rdm_design(one, rt = "RT", response = "R",
+           formula = list(A = ~ 1, t0 = ~ 1, b = ~ 1,
+                          v = ~ 1 +
+                            acc(.acc == target_resp) +
+                            acc(.acc == flanker_resp) +
+                            acc(.acc == simon_resp)))
+```
+
+There are four coefficients for the drift rates: a baseline for an accumulator
+that nothing supports, plus one increment for each source of support. The
+matching is done with the trial variables of the data (`target_resp`,
+`flanker_resp`, `simon_resp` in the MSIT data), so the same model works for any
+number of response alternatives, and a new source of support is a new `acc()`
+term.
+
+A comparison is turned into a 0/1 indicator, so it can also be negated, used
+inside `acc()` together with other variables, or interacted with a shared
+variable to let an effect differ between conditions.
+
+**Putting it together.** Shared terms describe the trial, `acc()` terms describe
+the accumulator, and the two combine additively:
+
+```{r acc-combined}
+rdm_design(dat2, rt = "RT", response = "R",
+           formula = list(A = ~ 1, t0 = ~ 1, b = ~ 1,
+                          v = ~ session + acc(.acc == target_resp)))
+```
+
+Here the drift rate of the accumulator that matches the target is
+$\exp(\eta_0 + \eta_1[\text{session 2}] + \eta_2)$ and that of every other
+accumulator is $\exp(\eta_0 + \eta_1[\text{session 2}])$: session shifts all
+drift rates, the `acc()` term shifts only the matching one. Because the
+coefficients enter through the log link, the sources of support in the previous
+model combine multiplicatively on the natural scale: an accumulator supported by
+both the target and the flankers drifts by $\exp(\eta_1 + \eta_2)$ relative to an
+unsupported one.
+
+Some rules keep the design unambiguous:
+
+* one `acc()` term per formula term; `acc(x):condition` and other combinations
+  with `acc()` in a single term are rejected, because `condition` can simply be
+  moved inside the parentheses, as in `acc(condition)`. That also gives one
+  condition effect per accumulator rather than a shared one;
+* `.acc` holds the accumulator in the type of the response (here a character),
+  and `response` is the same thing as a factor. Both can be used as variables in
+  any term inside `acc()`.
+
+**Leaving an accumulator out.** An accumulator can be excluded from a term with
+`0 +` or by writing the comparison in a way that is zero for it. This matters for
+the diffusion constant. `s` is only identified if the scale of the model is
+pinned down, and fixing one accumulator's `s` at 1 does that.
+`s = ~ 0 + acc(.acc != "1")` estimates the diffusion constant of accumulators 2
+and 3 relative to accumulator 1, which is fixed at 1. The alternative is
+`s = ~ acc(1)`, where the first response level is anchored by `rdm_design()` (or
+the one named in `anchor = list(s = "...")`); anchoring one accumulator is only
+enough when `A`, `b` or `v` is shared by all of them.
+
+### Random effects
+
+Random effects are written inside the parameter formulas, in the lme4 style:
+
+```{r ranef-terms}
+rdm_formula(
+  A = ~ 1 + (1 | subject),
+  b = ~ 1 + (1 | subject),
+  t0 = ~ 1 + (1 | subject),
+  v = ~ 1 + acc(.acc == target_resp) + (1 + acc(.acc == target_resp) | subject)
+)
+```
+
+Each `(term | group)` bar is a block of effects that are constant within a level
+of the grouping variable, here one deviation from the group mean per
+participant. Every block has its own covariance matrix, so
+`(1 | subject) + (0 + condition | subject)` gives two independent blocks, while
+`(1 + condition | subject)` estimates one block and the covariance between its
+columns. Several grouping factors can be used, which allows crossed random
+effects such as `(1 | subject) + (1 | item)`.
+
+The left-hand side of the bar is built by the same machinery as the fixed part,
+so `acc()` works there too: `(1 + acc(.acc == target_resp) | subject)` gives
+every participant a baseline drift rate and a deviation for the accumulator that
+matches the target.
+
+The covariance structure of a block is chosen by wrapping the term in a
+function, as in glmmTMB. For a block with $q$ columns:
+
+| structure | parameters | covariance matrix |
+|---|---|---|
+| `(term \| group)` | $q(q+1)/2$ | full covariance: $q$ standard deviations and all correlations (`us`) |
+| `diag(term \| group)` | $q$ | one variance per column, no correlations |
+| `homdiag(term \| group)` | 1 | one variance shared by all columns |
+| `cs(term \| group)` | 2 | one variance and one correlation between any two columns (compound symmetry) |
+
+```{r ranef-structs}
+## the random effects of a model that gives every participant three deviations,
+## one per source of support
+show_ranef <- function(v) {
+  print(rdm_ranef(rdm_design(dat, rt = "RT", response = "R",
+                             formula = list(A = ~ 1, t0 = ~ 1, b = ~ 1, v = v))))
+}
+
+## full covariance: 3 standard deviations and 3 correlations
+show_ranef(~ 1 + (0 + acc(.acc == target_resp) + acc(.acc == flanker_resp) +
+                    acc(.acc == simon_resp) | subject))
+## one variance per source of support, no correlations
+show_ranef(~ 1 + diag(0 + acc(.acc == target_resp) + acc(.acc == flanker_resp) +
+                        acc(.acc == simon_resp) | subject))
+## one variance shared by the three
+show_ranef(~ 1 + homdiag(0 + acc(.acc == target_resp) +
+                           acc(.acc == flanker_resp) + acc(.acc == simon_resp) |
+                           subject))
+## one variance and one correlation between any two
+show_ranef(~ 1 + cs(0 + acc(.acc == target_resp) + acc(.acc == flanker_resp) +
+                      acc(.acc == simon_resp) | subject))
+```
+
+`diag()` is the way to get independent effects for the levels of a factor: a
+plain `(0 + f | id)` estimates a covariance between them instead. `homdiag()` and
+`cs()` are for many columns where a full covariance would need too many
+parameters; `cs()` is the natural choice for a set of accumulators or conditions
+that are interchangeable a priori, and its correlation is constrained to the
+values that keep the matrix positive definite.
+
+Random-effect standard deviations are estimated on a log scale (so the model
+never proposes a negative one) and, by default, are pulled towards zero by a
+half-normal prior with scale 0.5 (`prior = list(sd = 0.5)`). The prior is not
+cosmetic: with a flat prior the Laplace approximation of the marginal likelihood
+is unbounded for large variance components, so a weak prior is what makes the
+maximum likelihood estimate exist. `prior = list(sd = NULL, beta = NULL)` gives
+flat priors, and `logLik()` reports the likelihood without them.
+
+## A worked example: the MSIT
+
+The package ships the data of Stevenson et al. (2024), an MSIT in which two
+sources of interference (flanker and Simon) act on the target. The trial
+variables are `target_resp` (the correct response), `flanker_resp` and
+`simon_resp` (the responses supported by the flankers and by the target's
+position, `"0"` where there is none), besides `condition`, `subject`, `session`,
+`R` and `RT`. Hierarchical fits of all 86 participants take hours, so the example
+uses the first 10 participants of session 1.
+
+A single participant first, to see the parameters without the random effects:
+
+```{r single}
+fit_one <- fit_rdm(one, rt = "RT", response = "R",
+                   formula = rdm_formula(A = ~ 1, t0 = ~ 1, b = ~ 1, v = ~ acc(1)))
+summary(fit_one)$coefficients
+
+fitted(fit_one)[1:3, ]
+```
+
+`fitted()` gives the parameters that the model uses on each trial: one row per
+trial because all parameters are shared by the accumulators, and one drift rate
+per accumulator in the columns `v1` to `v3`. The threshold is reported as `b`
+itself, i.e. `A + exp(b)` of the coefficient.
+
+Now the hierarchical model for the ten participants. The fixed part says that the
+drift rate of an accumulator is higher when it matches the target, the flankers
+or the position; the random part gives every participant their own baseline
+drift rate.
+
+```{r group}
+msit_model <- rdm_formula(
+  A = ~ 1 + (1 | subject),
+  b = ~ 1 + (1 | subject),
+  t0 = ~ 1 + (1 | subject),
+  v = ~ 1 + acc(.acc == target_resp) + acc(.acc == flanker_resp) +
+    acc(.acc == simon_resp) + (1 | subject)
+)
+
+fit <- fit_rdm(dat, rt = "RT", response = "R", formula = msit_model)
+summary(fit)
+```
+
+The drift rates are on the log scale, so the coefficients of the `acc()` terms
+are multiplicative increments:
+
+```{r ratio}
+round(coef(fit, type = "ratio")[c("b:(Intercept)", "v:(Intercept)",
+                                  "v:acc(.acc == target_resp)",
+                                  "v:acc(.acc == flanker_resp)",
+                                  "v:acc(.acc == simon_resp)")], 3)
+
+## drift rate of an accumulator supported by the target, relative to one that
+## nothing supports: exp(v0 + v_target)
+eta <- coef(fit)
+exp(eta[["v:(Intercept)"]] + eta[["v:acc(.acc == target_resp)"]])
+```
+
+An accumulator that is the correct response drifts by a factor of about 4
+compared with one that nothing supports, which is what reproduces the high
+accuracy; Simon support contributes more than flanker support in these ten
+participants.
+
+### Faster starts, and comparing covariance structures
+
+The Laplace approximation is expensive because every evaluation optimises the
+random effects. Two features help. `rdm_subject_start()` fits the same
+fixed-effect model to each participant separately, which takes a fraction of a
+second per participant, and hands the result to `fit_rdm()` as starting values:
+
+```{r start}
+st <- rdm_subject_start(dat, rt = "RT", response = "R", id = "subject",
+                        formula = msit_model)
+st
+
+fit_start <- fit_rdm(dat, rt = "RT", response = "R", formula = msit_model,
+                     start = st)
+c(cold = logLik(fit), warm = logLik(fit_start))
+```
+
+Both fits arrive at the same likelihood, but the warm one needs far fewer
+evaluations of the likelihood. A previous `rdm_fit` can be passed as `start`
+too, which is the quickest way to refit a model after changing something small.
+
+Covariance structures are the usual place to simplify a model that is slow or
+has poorly identified variance components. Instead of one shared random-effect
+variance for the drift rates, the model below gives each of the three sources of
+support its own variance, without correlations between them:
+
+```{r structures}
+v_support <- ~ 1 + acc(.acc == target_resp) + acc(.acc == flanker_resp) +
+  acc(.acc == simon_resp) +
+  diag(0 + acc(.acc == target_resp) + acc(.acc == flanker_resp) +
+         acc(.acc == simon_resp) | subject)
+
+fit_diag <- fit_rdm(dat, rt = "RT", response = "R",
+                    formula = rdm_formula(
+                      A = ~ 1 + (1 | subject), b = ~ 1 + (1 | subject),
+                      t0 = ~ 1 + (1 | subject), v = v_support))
+
+rbind(us = c(AIC = AIC(fit), df = attr(logLik(fit), "df")),
+      diag = c(AIC = AIC(fit_diag), df = attr(logLik(fit_diag), "df")))
+```
+
+The variance components of the two models estimate different things, so the
+comparison is not a test of one nested hypothesis. It is a rough guide at best:
+the Laplace log-likelihood contains a correction term that grows as variance
+components shrink, which makes it systematically more favourable to models with
+fewer random effects, and the same reason makes a likelihood-ratio test
+inappropriate. The estimated standard deviations, the correlations and the
+diagnostics printed by `summary()` say more than the difference in AIC.
+
+## Working with a fit
+
+`summary()` gives the fixed effects with Wald tests and the random-effect
+standard deviations and correlations. The coefficients are on the log scale;
+`confint()` gives Wald intervals, on the ratio scale when asked for:
+
+```{r confint}
+confint(fit, type = "ratio")[c("v:acc(.acc == target_resp)",
+                               "v:acc(.acc == flanker_resp)"), ]
+```
+
+The implied choice probabilities of the fitted data can be compared with the
+observed proportions, which is the quickest goodness-of-fit check:
+
+```{r probs}
+probs <- predict(fit, type = "probs")
+round(colMeans(probs), 3)
+round(prop.table(table(dat$R)), 3)
+```
+
+Other extractors:
+
+* `coef()`, `fixef()` and `vcov()` for the fixed effects;
+* `ranef(fit)` for the conditional modes of the random effects, one row per
+  level and effect;
+* `fitted(fit)` for the trial-level parameters, `predict(fit, type = "probs")` or
+  `type = "quantiles"` for the implied choice probabilities and response-time
+  quantiles;
+* `simulate(fit, nsim = 1)` for new responses and response times on the
+  covariates of the fitted data;
+* `logLik()`, `AIC()` and `nobs()` for model comparison.
+
+`emmeans()` support is available one parameter at a time through `dpar`, e.g.
+`emmeans(fit, ~ condition, dpar = "v")` in a model whose drift rates depend on
+`condition`.
+
+## Practical notes
+
+* **Diagnostics.** `summary()` prints the range of the eigenvalues of the inner
+  and the outer Hessian. A ratio below `1e-8`, a non-positive smallest
+  eigenvalue, or a message that the joint Hessian is not positive definite means
+  that the fit cannot be trusted: the conditional modes may not be a proper mode
+  of the integrand (often a variance component at zero), or some combination of
+  coefficients is barely identified.
+* **Constraints.** Models where a shared `t0` exceeds the shortest response time
+  of some participant are handled with a smooth penalty whose weight is the
+  `barrier` argument (default 1e3). Raising it enforces the constraint more
+  strictly at the cost of a harder optimisation.
+* **Speed.** The cost per evaluation grows with the number of trials and with
+  the number of random effects. Start from `rdm_subject_start()` on large models,
+  keep the random-effect structure as small as the design allows, and use
+  `sdreport = FALSE` when only the point estimates are needed, since the
+  standard errors cost about as much as the fit itself.
+* **Identification.** A free `s` needs the scale of the model pinned down, and a
+  parameter that varies over the accumulators may have its scale absorbed by
+  another one. `rdm_design()` checks the obvious cases and says what to change.
+
+## References
+
+Heathcote, A., & Love, J. (2012). Linear deterministic accumulator models of
+simple choice. *Frontiers in Psychology*, 3, 292.
+
+Stevenson, N., Innes, R. J., Boag, R. J., Miletic, S., Isherwood, S. J. S.,
+Trutti, A. C., Heathcote, A., & Forstmann, B. U. (2024). Joint modelling of
+latent cognitive mechanisms shared across decision-making domains.
+*Computational Brain & Behavior*, 7, 1--22.
+
+Tillman, G., Van Zandt, T., & Logan, G. D. (2020). Sequential sampling models
+without time-dependent boundaries. *Journal of Mathematical Psychology*, 99,
+102467.

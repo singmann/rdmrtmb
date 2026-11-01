@@ -23,7 +23,9 @@ export(acc)
 export(fit_rdm)
 export(fixef)
 export(ranef)
+export(rdm_design)
 export(rdm_formula)
+export(rdm_ranef)
 export(rdm_subject_start)
 importFrom(RTMB,
   colSums,
