@@ -268,6 +268,13 @@ simulate.rdm_fit <- function(object, nsim = 1, seed = NULL, ...) {
   out
 }
 
+## one line describing the spread of the inner Hessian's eigenvalues
+rdm_format_eig <- function(eig) {
+  if (is.null(eig)) return("not available")
+  paste0(format(eig[["min"]], digits = 3), " to ", format(eig[["max"]], digits = 3),
+         " (ratio ", format(eig[["min"]] / eig[["max"]], digits = 3), ")")
+}
+
 #' @export
 print.rdm_fit <- function(x, ...) {
   cat("<rdm_fit> racing diffusion model\n")
@@ -277,6 +284,12 @@ print.rdm_fit <- function(x, ...) {
       length(x$theta), ", random effects: ", length(x$u), "\n", sep = "")
   cat("  Laplace log-likelihood: ", format(x$loglik, digits = 7),
       " (df = ", x$df, ")\n", sep = "")
+  if (!is.null(x$inner_eig)) {
+    cat("  inner Hessian: ", rdm_format_eig(x$inner_eig), "\n", sep = "")
+  }
+  if (!is.null(x$outer_eig)) {
+    cat("  outer Hessian: ", rdm_format_eig(x$outer_eig), "\n", sep = "")
+  }
   cat("  optimiser: ", x$opt$method, ", convergence ", x$opt$convergence,
       ", max |gradient| ", format(x$max_grad, digits = 3), "\n", sep = "")
   if (!is.null(x$design$s$anchor)) {
@@ -301,6 +314,8 @@ summary.rdm_fit <- function(object, ...) {
   structure(list(call = object$call, nobs = object$nobs, K = object$design$K,
                  coefficients = coefs, variance = varcov,
                  loglik = object$loglik, df = object$df,
+                 inner_eig = object$inner_eig,
+                 outer_eig = object$outer_eig,
                  AIC = -2 * object$loglik + 2 * object$df,
                  converged = object$converged, pdHess = object$pdHess,
                  max_grad = object$max_grad, method = object$opt$method),
@@ -324,6 +339,12 @@ print.summary.rdm_fit <- function(x, ...) {
   stats::printCoefmat(x$coefficients, na.print = "NA")
   cat("\nLaplace log-likelihood:", format(x$loglik, digits = 7),
       " on", x$df, "df,  AIC:", format(x$AIC, digits = 7), "\n")
+  if (!is.null(x$inner_eig)) {
+    cat("Inner Hessian:", rdm_format_eig(x$inner_eig), "\n")
+  }
+  if (!is.null(x$outer_eig)) {
+    cat("Outer Hessian:", rdm_format_eig(x$outer_eig), "\n")
+  }
   cat("Optimiser:", x$method, "| converged:", x$converged,
       "| max |gradient|:", format(x$max_grad, digits = 3), "\n")
   if (isFALSE(x$pdHess)) {

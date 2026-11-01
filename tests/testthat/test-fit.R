@@ -101,3 +101,46 @@ test_that("thresholds can differ between accumulators", {
   expect_true(all(c("response", "A", "b", "v") %in% names(fit)))
   expect_equal(fit$b[fit$response == "1"], rep(1.4, n), tolerance = 0.2)
 })
+
+test_that("the extreme eigenvalues of the inner Hessian are reported", {
+  f <- small_fit()
+  expect_named(f$inner_eig, c("min", "max"))
+  expect_gt(f$inner_eig[["min"]], 0)
+  expect_lt(f$inner_eig[["min"]], f$inner_eig[["max"]])
+
+  ## printed next to the log-likelihood, and in the summary
+  expect_true(any(grepl("inner Hessian", capture.output(print(f)))))
+  expect_true(any(grepl("Inner Hessian", capture.output(print(summary(f))))))
+  expect_equal(summary(f)$inner_eig, f$inner_eig)
+
+  ## a model without random effects has none
+  expect_null(plain_fit()$inner_eig)
+  expect_false(any(grepl("inner Hessian", capture.output(print(plain_fit())))))
+})
+
+test_that("the extreme eigenvalues of the outer Hessian are reported", {
+  f <- small_fit()
+  dat <- simulate_data(seed = 2)
+  expect_named(f$outer_eig, c("min", "max"))
+  expect_gt(f$outer_eig[["min"]], 0)
+  expect_lt(f$outer_eig[["min"]], f$outer_eig[["max"]])
+  expect_true(any(grepl("outer Hessian", capture.output(print(f)))))
+  expect_true(any(grepl("Outer Hessian", capture.output(print(summary(f))))))
+  expect_equal(summary(f)$outer_eig, f$outer_eig)
+
+  ## the covariance from sdreport() inverts to the hessian
+  f2 <- fit_rdm(dat, rt = "rt", response = "response",
+                formula = rdm_formula(A = ~1 + (1 | id), b = ~1, t0 = ~1,
+                                      v = ~ acc(1)))
+  ev <- 1 / eigen(as.matrix(f2$sd$cov.fixed), symmetric = TRUE,
+                  only.values = TRUE)$values
+  expect_equal(f2$outer_eig[["min"]] / f2$outer_eig[["max"]],
+               min(ev) / max(ev))
+
+  ## without sdreport() there is no outer Hessian
+  f3 <- fit_rdm(dat, rt = "rt", response = "response",
+                formula = rdm_formula(A = ~1 + (1 | id), b = ~1, t0 = ~1,
+                                      v = ~ acc(1)),
+                sdreport = FALSE)
+  expect_null(f3$outer_eig)
+})

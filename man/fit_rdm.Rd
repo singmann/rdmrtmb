@@ -90,6 +90,19 @@ standard deviations and Cholesky elements)},
 \item{\code{loglik}, \code{df}, \code{nobs}}{the Laplace log-likelihood, its degrees of
 freedom and the number of trials},
 \item{\code{opt}, \code{sd}}{the optimiser result and the \code{sdreport} output},
+\item{\code{inner_eig}}{the smallest and largest eigenvalue of the Hessian of
+the joint objective with respect to the random effects, at the
+conditional modes; \code{NULL} for a model without random effects, or with
+more than 2000 of them. A non-positive smallest eigenvalue, or a
+smallest / largest ratio below 1e-8, triggers a warning: the
+conditional modes are then not a proper mode of the integrand and the
+Laplace value and its standard errors cannot be trusted},
+\item{\code{outer_eig}}{the smallest and largest eigenvalue of the Hessian of
+the Laplace-approximated objective with respect to the fixed effects,
+from the covariance that \code{sdreport()} returns; \code{NULL} without
+\code{sdreport}, or when that covariance is not positive definite. A
+smallest / largest ratio below 1e-8 triggers a warning, because some
+combination of coefficients is then barely identified},
 \item{\code{design}, \code{ranef}, \code{nll}, \code{obj}}{the underlying model pieces},
 }
 and the attributes needed by the S3 methods.

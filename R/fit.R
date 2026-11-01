@@ -87,6 +87,19 @@
 #'     \item{`loglik`, `df`, `nobs`}{the Laplace log-likelihood, its degrees of
 #'       freedom and the number of trials},
 #'     \item{`opt`, `sd`}{the optimiser result and the `sdreport` output},
+#'     \item{`inner_eig`}{the smallest and largest eigenvalue of the Hessian of
+#'       the joint objective with respect to the random effects, at the
+#'       conditional modes; `NULL` for a model without random effects, or with
+#'       more than 2000 of them. A non-positive smallest eigenvalue, or a
+#'       smallest / largest ratio below 1e-8, triggers a warning: the
+#'       conditional modes are then not a proper mode of the integrand and the
+#'       Laplace value and its standard errors cannot be trusted},
+#'     \item{`outer_eig`}{the smallest and largest eigenvalue of the Hessian of
+#'       the Laplace-approximated objective with respect to the fixed effects,
+#'       from the covariance that `sdreport()` returns; `NULL` without
+#'       `sdreport`, or when that covariance is not positive definite. A
+#'       smallest / largest ratio below 1e-8 triggers a warning, because some
+#'       combination of coefficients is then barely identified},
 #'     \item{`design`, `ranef`, `nll`, `obj`}{the underlying model pieces},
 #'   }
 #'   and the attributes needed by the S3 methods.
@@ -126,6 +139,23 @@ fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
   loglik <- -flat$fn(full)
 
   grad <- tryCatch(obj$gr(opt$par), error = function(e) rep(NA_real_, length(opt$par)))
+
+  ## the inner Hessian: if it is indefinite or nearly singular the conditional
+  ## modes are not a proper mode and the Laplace value is unreliable
+  inner_eig <- rdm_inner_eigen(obj)
+  if (!is.null(inner_eig)) {
+    ratio <- inner_eig[["min"]] / inner_eig[["max"]]
+    if (inner_eig[["min"]] <= 0) {
+      warning("the inner Hessian for the random effects is not positive definite ",
+              "(smallest eigenvalue ", format(inner_eig[["min"]], digits = 3),
+              "); the Laplace approximation is unreliable.", call. = FALSE)
+    } else if (ratio < 1e-8) {
+      warning("the inner Hessian for the random effects is close to singular ",
+              "(smallest / largest eigenvalue ", format(ratio, digits = 3),
+              "); the Laplace approximation is unreliable.", call. = FALSE)
+    }
+  }
+
   pd_hess <- NA
   sdr <- NULL
   if (isTRUE(sdreport)) {
@@ -147,6 +177,17 @@ fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
     }
   }
 
+  ## the outer Hessian: a large ratio between its largest and smallest
+  ## eigenvalue means that some combination of coefficients is barely identified
+  outer_eig <- rdm_outer_eigen(sdr)
+  if (!is.null(outer_eig) &&
+      outer_eig[["min"]] / outer_eig[["max"]] < 1e-8) {
+    warning("the fixed effects are close to collinear ",
+            "(smallest / largest eigenvalue of the outer Hessian ",
+            format(outer_eig[["min"]] / outer_eig[["max"]], digits = 3),
+            "); their standard errors are unreliable.", call. = FALSE)
+  }
+
   n_theta <- if (length(full$theta)) length(full$theta) else 0L
   structure(list(
     call = match.call(),
@@ -159,6 +200,8 @@ fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
     nobs = design$n,
     opt = opt,
     sd = sdr,
+    inner_eig = inner_eig,
+    outer_eig = outer_eig,
     pdHess = pd_hess,
     max_grad = if (all(is.na(grad))) NA_real_ else max(abs(grad)),
     converged = opt$convergence == 0,
@@ -168,6 +211,36 @@ fit_rdm <- function(data, rt, response, formula, fixed = list(s = 1),
     obj = obj,
     prior = prior
   ), class = "rdm_fit")
+}
+
+## The extreme eigenvalues of the Hessian of the joint objective with respect to
+## the random effects, at the conditional modes. A nearly singular or indefinite
+## matrix means the modes are not a proper mode of the integrand, which makes the
+## Laplace value path dependent and its standard errors meaningless.
+## `obj` must have been evaluated at the optimum for the modes to be current.
+rdm_inner_eigen <- function(obj, n_max = 2000) {
+  n_u <- length(obj$env$random)
+  if (n_u == 0L || n_u > n_max) return(NULL)
+  ev <- tryCatch({
+    H <- obj$env$spHess(obj$env$last.par, random = TRUE)
+    eigen(as.matrix(H), symmetric = TRUE, only.values = TRUE)$values
+  }, error = function(e) NULL)
+  if (is.null(ev) || !length(ev)) return(NULL)
+  c(min = min(ev), max = max(ev))
+}
+
+## The extreme eigenvalues of the Hessian of the Laplace-approximated objective
+## with respect to the fixed effects, taken from the fixed-effect covariance
+## that `sdreport()` returns. A large ratio between the largest and the smallest
+## eigenvalue means that some combination of coefficients is barely identified.
+rdm_outer_eigen <- function(sdr, n_max = 500) {
+  V <- if (is.null(sdr)) NULL else sdr$cov.fixed
+  if (is.null(V) || !length(V) || nrow(V) == 0L || nrow(V) > n_max) return(NULL)
+  ev <- tryCatch(eigen(as.matrix(V), symmetric = TRUE, only.values = TRUE)$values,
+                 error = function(e) NULL)
+  if (is.null(ev) || any(!is.finite(ev)) || any(ev <= 0)) return(NULL)
+  ev <- 1 / ev
+  c(min = min(ev), max = max(ev))
 }
 
 ## starting values from a vector of fixed effects, a previous fit, or a list with
