@@ -24,6 +24,8 @@ Imports:
     stats,
     utils
 Suggests:
+    emmeans,
+    estimability,
     numDeriv,
     rtdists,
     testthat (>= 3.0.0)

@@ -139,7 +139,8 @@ rdm_design <- function(data, rt, response, formula, fixed = list(s = 1),
 ## and terms that compare the accumulator with a trial variable. `what` names
 ## the term in the error messages; `rdm_ranef()` uses it for the random-effect
 ## terms, which go through the same machinery.
-par_spec <- function(form, data, long, n, K, par, levels, contrasts, what = par) {
+par_spec <- function(form, data, long, n, K, par, levels, contrasts, what = par,
+                     check_rank = TRUE, contrasts_used = NULL) {
   if (!inherits(form, "formula")) {
     stop("the formula for `", what, "` must be a formula, e.g. ~1.", call. = FALSE)
   }
@@ -200,7 +201,12 @@ par_spec <- function(form, data, long, n, K, par, levels, contrasts, what = par)
   intercept <- attr(tt, "intercept") == 1L && !has_inner_intercept
 
   shared <- reformulate(new_labels[!is_stacked], intercept = intercept, env = env)
-  X <- stats::model.matrix(shared, long, contrasts.arg = map_contrasts(contrasts, mapping))
+  ## the contrasts in force are recovered from the model matrix, as `lm()` does,
+  ## so that it can be rebuilt later (by `emm_basis()`) even when the options
+  ## have changed in the meantime
+  used <- par_contrasts(map_contrasts(contrasts, mapping), contrasts_used)
+  X <- stats::model.matrix(shared, long, contrasts.arg = used)
+  used <- utils::modifyList(used %||% list(), as.list(attr(X, "contrasts")))
   if (ncol(X)) {
     colnames(X) <- paste0(par, ":", pretty_names(colnames(X), mapping))
   }
@@ -210,9 +216,12 @@ par_spec <- function(form, data, long, n, K, par, levels, contrasts, what = par)
   ## accumulator
   if (length(stacked)) {
     blocks <- lapply(stacked, function(s) {
-      Xs <- stats::model.matrix(as.formula(paste("~", s$expr), env = env), data,
-                                contrasts.arg = map_contrasts(contrasts, list(),
-                                                              s$label, s$expr))
+      form_s <- as.formula(paste("~", s$expr), env = env)
+      Xs <- stats::model.matrix(form_s, data,
+                                contrasts.arg = par_contrasts(
+                                  map_contrasts(contrasts, list(), s$label,
+                                                s$expr), used))
+      used <<- utils::modifyList(used, as.list(attr(Xs, "contrasts")))
       p <- ncol(Xs)
       out <- matrix(0, n * K, K * p)
       cn <- character(K * p)
@@ -232,7 +241,7 @@ par_spec <- function(form, data, long, n, K, par, levels, contrasts, what = par)
          call. = FALSE)
   }
   rank <- qr(X)$rank
-  if (rank < ncol(X)) {
+  if (check_rank && rank < ncol(X)) {
     stop("the model matrix of `", what, "` is rank deficient (", rank, " of ",
          ncol(X), " coefficients are identified): ", paste(colnames(X), collapse = ", "),
          ". Remove the redundant terms.", call. = FALSE)
@@ -240,7 +249,16 @@ par_spec <- function(form, data, long, n, K, par, levels, contrasts, what = par)
 
   relates <- grepl("\\.acc", labels) | grepl("\\bresponse\\b", labels)
   list(free = TRUE, X = X, coef_names = colnames(X), formula = form,
-       per_accumulator = length(stacked) > 0L || any(relates))
+       per_accumulator = length(stacked) > 0L || any(relates),
+       contrasts_used = used)
+}
+
+## the contrasts of the factors used by one model matrix: those stored with the
+## fit (names such as "contr.sum", as `lm()` records them) overridden by the
+## ones the user asked for
+par_contrasts <- function(extra = NULL, used = NULL) {
+  out <- utils::modifyList(as.list(used %||% list()), as.list(extra %||% list()))
+  if (!length(out)) NULL else out
 }
 
 ## a parameter held constant: either one value for all accumulators or one value
@@ -440,7 +458,7 @@ check_identified <- function(design) {
 }
 
 #' @export
-print.rdm_design <- function(x, max_unique = 10, ...) {
+print.rdm_design <- function(x, max_unique = 50, ...) {
   if (!is.numeric(max_unique) || length(max_unique) != 1L || is.na(max_unique) ||
       max_unique < 1) {
     stop("`max_unique` must be a positive number.", call. = FALSE)

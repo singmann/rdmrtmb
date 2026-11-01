@@ -2,6 +2,8 @@
 
 S3method(coef,rdm_fit)
 S3method(confint,rdm_fit)
+S3method(emmeans::emm_basis,rdm_fit)
+S3method(emmeans::recover_data,rdm_fit)
 S3method(fitted,rdm_fit)
 S3method(fixef,rdm_fit)
 S3method(logLik,rdm_fit)
