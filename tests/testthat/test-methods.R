@@ -133,4 +133,9 @@ test_that("print() and summary() work", {
                ignore_attr = TRUE)
   expect_output(print(s), "Fixed effects")
   expect_output(print(s), "Random effects")
+  ## each block is announced once, not once per covariance parameter
+  out <- capture.output(print(s))
+  for (lab in unique(s$variance$term)) {
+    expect_equal(sum(grepl(lab, out, fixed = TRUE)), 1L)
+  }
 })

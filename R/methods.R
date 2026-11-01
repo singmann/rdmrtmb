@@ -333,7 +333,12 @@ print.summary.rdm_fit <- function(x, ...) {
     tab <- x$variance
     tab$estimate <- round(tab$estimate, 4)
     tab$se <- round(tab$se, 4)
-    print(tab, row.names = FALSE)
+    ## one header per block, so that a long term label is printed once
+    for (lab in unique(tab$term)) {
+      cat(" ", lab, "\n", sep = "")
+      print(tab[tab$term == lab, c("parameter", "estimate", "se")],
+            row.names = FALSE)
+    }
   }
   cat("\nFixed effects (log scale):\n")
   stats::printCoefmat(x$coefficients, na.print = "NA")
