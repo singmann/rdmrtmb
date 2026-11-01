@@ -40,7 +40,9 @@ grouped by: a vector, or the name of a column of \code{data}.}
 
 \item{fixed}{Named list of parameters held constant on their natural scale,
 e.g. \code{list(s = 1)}. A fixed \code{b} is the threshold itself, not the distance.
-The value can have length 1 (shared) or one value per accumulator.}
+The value can have length 1 (shared) or one value per accumulator. \code{A} may
+also be fixed at zero for all accumulators, which drops the start-point
+variability; that is the same model as leaving \code{A} out of the formula.}
 
 \item{contrasts}{Named list of contrast matrices, passed on to
 \code{\link[stats:model.matrix]{stats::model.matrix()}}. The contrasts of a term inside \code{acc()} are given

@@ -39,7 +39,9 @@ and \code{\link[=rdm_formula]{rdm_formula()}}.}
 
 \item{fixed}{Named list of parameters held constant on their natural scale,
 e.g. \code{list(s = 1)}. A fixed \code{b} is the threshold itself, not the distance.
-The value can have length 1 (shared) or one value per accumulator.}
+The value can have length 1 (shared) or one value per accumulator. \code{A} may
+also be fixed at zero for all accumulators, which drops the start-point
+variability; that is the same model as leaving \code{A} out of the formula.}
 
 \item{prior}{A list with elements \code{sd} and \code{beta} giving the scale of the
 half-normal prior on the random-effect standard deviations and of the

@@ -205,6 +205,27 @@ test_that("fixed parameters are stored as constants", {
   expect_identical(length(d$v$value), 12L)
 })
 
+test_that("the start-point variability can be fixed at zero", {
+  d <- rdm_design(example_data, example_data$rt, example_data$resp,
+                  formula = list(b = ~1, t0 = ~1, v = ~1),
+                  fixed = list(A = 0))
+  expect_false(d$A$free)
+  expect_identical(unique(d$A$value), 0)
+  ## only for all accumulators, and no other parameter may be zero
+  expect_error(
+    rdm_design(example_data, example_data$rt, example_data$resp,
+               formula = list(t0 = ~1, v = ~1),
+               fixed = list(A = c(0, 0.2))),
+    "zero for all accumulators"
+  )
+  expect_error(
+    rdm_design(example_data, example_data$rt, example_data$resp,
+               formula = list(b = ~1, v = ~1),
+               fixed = list(t0 = 0)),
+    "positive number"
+  )
+})
+
 test_that("a fixed parameter can take one value per accumulator", {
   d <- rdm_design(example_data, example_data$rt, example_data$resp,
                   formula = list(A = ~1, t0 = ~1, v = ~1),

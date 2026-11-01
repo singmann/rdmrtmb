@@ -85,13 +85,15 @@ Two consequences are worth keeping in mind when reading estimates:
 * To get the parameters that the model actually uses on each trial, including
   the random effects, use `fitted(fit)`; the threshold there is $b$ itself.
 
-A parameter that is left out of the formula takes a fixed default: `b = A + 1`,
-`t0 = 0` and `s = 1`. `A` defaults to 0 (no start-point variability), which the
-likelihood does not support, so give `A` a formula such as `A = ~ 1`, or fix it
-to a positive value. `v` has no default, because without drift rates there is no
-race. Parameters can be held constant at a chosen positive value with `fixed`,
+A parameter that is left out of the formula takes a fixed default: `A = 0`,
+`b = A + 1`, `t0 = 0` and `s = 1`. `A = 0` means no start-point variability: the
+accumulators all start at zero, their first-passage times are inverse Gaussian
+rather than the average over start points, and the model is a special case of
+the RDM. `v` has no default, because without drift rates there is no race.
+Parameters can be held constant at a chosen positive value with `fixed`,
 which is interpreted on the natural scale: `fixed = list(A = 0.5)` fixes the
-start-point bound at 0.5, and a fixed `b` is the threshold itself.
+start-point bound at 0.5 (and `fixed = list(A = 0)` fixes it at zero, like
+leaving `A` out), and a fixed `b` is the threshold itself.
 
 The diffusion constant `s` is fixed at 1 by default. That is not a restriction
 in practice: `s` only scales the model, so setting it to 1 just chooses the unit

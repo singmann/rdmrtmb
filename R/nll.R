@@ -139,6 +139,12 @@ rdm_nll <- function(design, ranef = NULL,
   ## divisions are cheap in themselves but every operation is taped
   unit_s <- is.null(design$s) || (!design$s$free && all(design$s$value == 1))
 
+  ## without start-point variability the first-passage times are inverse
+  ## Gaussian, and the start-averaged density cannot be used because it divides
+  ## by A
+  fixed_start <- is.null(design$A) ||
+    (!design$A$free && all(design$A$value == 0))
+
   fn <- function(par) {
     mp <- pars_fun(par$beta, par$u)
     t <- design$rt - mp$t0
@@ -147,10 +153,12 @@ rdm_nll <- function(design, ranef = NULL,
     nll <- barrier * sum(violation(1e3 * t))
     t_use <- sqrt(t^2 + 1e-12)
     if (unit_s) {
-      nll <- nll - sum(rdm_loglik(t_use, mp$A, mp$b, mp$v, design$response))
+      nll <- nll - sum(rdm_loglik(t_use, mp$A, mp$b, mp$v, design$response,
+                                  fixed_start = fixed_start))
     } else {
       nll <- nll - sum(rdm_loglik(t_use, mp$A / mp$s, mp$b / mp$s,
-                                  mp$v / mp$s, design$response))
+                                  mp$v / mp$s, design$response,
+                                  fixed_start = fixed_start))
     }
 
     if (!is.null(prior$beta)) {

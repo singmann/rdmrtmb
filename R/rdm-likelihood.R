@@ -58,6 +58,47 @@ rdm_log_S <- function(t, A, b, v) {
   log((I1 - I2) / A + 1e-300)
 }
 
+#' Log-density of a single accumulator without start-point variability
+#'
+#' With `A = 0` every accumulator starts at zero, so its first-passage time is
+#' inverse Gaussian with mean `b / v` and shape `b^2`. This is the limit of
+#' `rdm_log_f()` for `A` going to zero, written out because that function
+#' divides by `A`.
+#'
+#' @param t Decision time, i.e. the response time minus `t0`. Must be positive.
+#' @param b Response threshold, must be positive.
+#' @param v Drift rate, must be positive.
+#' @return The log density, a vector with the length of `t`.
+#' @keywords internal
+#' @noRd
+rdm_log_f_ig <- function(t, b, v) {
+  z <- (b - v * t) / sqrt(t)
+  log(b) - 0.5 * log(2 * pi) - 1.5 * log(t) - 0.5 * z^2
+}
+
+#' Log survival probability of a single accumulator without start-point
+#' variability
+#'
+#' `P(T > t)` for the inverse-Gaussian first-passage time of `rdm_log_f_ig()`.
+#' The second term of the survival function is computed on the log scale,
+#' because `exp(2 v b)` overflows for larger drift rates and thresholds.
+#'
+#' @inheritParams rdm_log_f_ig
+#' @return The log survival probability, a vector with the length of `t`.
+#' @keywords internal
+#' @noRd
+rdm_log_S_ig <- function(t, b, v) {
+  st <- sqrt(t)
+  ## survival 1 - F(t) = Phi(z) - exp(2vb) Phi(-(b + vt) / sqrt(t)); the terms
+  ## are close for large t, so both are kept on the log scale and subtracted
+  ## there, which is also what keeps exp(2vb) from overflowing
+  ## pnorm() is called without the namespace, as RTMB can only tape the bare
+  ## function
+  log_first <- pnorm((b - v * t) / st, log.p = TRUE)
+  log_second <- 2 * v * b + pnorm(-(b + v * t) / st, log.p = TRUE)
+  RTMB::logspace_sub(log_first, log_second)
+}
+
 #' Log-likelihood of one trial of the RDM
 #'
 #' The accumulator that finishes first determines both the response and the
@@ -67,29 +108,41 @@ rdm_log_S <- function(t, A, b, v) {
 #'
 #' @param t Decision time, a matrix with one row per trial and one column per
 #'   accumulator, i.e. the response time minus the non-decision time.
-#' @param A,b,s Matrices of start point, threshold and diffusion constant, with
-#'   the same dimensions as `t`; see `rdm_log_f()`.
+#' @param A,b Matrices of start point and threshold, with the same dimensions as
+#'   `t`; see `rdm_log_f()`. With `fixed_start = TRUE`, `A` is ignored.
 #' @param v Matrix of drift rates with one row per trial and one column per
 #'   accumulator.
 #' @param response Integer vector of observed responses, coded `1:K`.
+#' @param fixed_start If `TRUE`, all accumulators start at zero (`A = 0`), and the
+#'   inverse-Gaussian functions are used instead of the start-averaged ones,
+#'   which divide by `A`.
 #' @return A vector of log likelihoods, one per trial.
 #' @keywords internal
 #' @noRd
-rdm_loglik <- function(t, A, b, v, response) {
+rdm_loglik <- function(t, A, b, v, response, fixed_start = FALSE) {
   K <- ncol(v)
   n <- nrow(v)
   t <- as_par_matrix(t, n, K)
-  A <- as_par_matrix(A, n, K)
   b <- as_par_matrix(b, n, K)
+  win <- cbind(seq_len(n), response)
   ## the density is only needed for the accumulator that won; computing all the
   ## survival probabilities and subtracting the winner's is cheaper than
   ## subsetting the matrix three times
   ## not vapply(): it rejects the representation RTMB uses when taping second
   ## derivatives for the Laplace approximation
-  log_S <- do.call(cbind, lapply(seq_len(K),
-                                 \(j) rdm_log_S(t[, j], A[, j], b[, j], v[, j])))
-  win <- cbind(seq_len(n), response)
-  log_f <- rdm_log_f(t[win], A[win], b[win], v[win])
+  log_S <- if (fixed_start) {
+    do.call(cbind, lapply(seq_len(K),
+                          \(j) rdm_log_S_ig(t[, j], b[, j], v[, j])))
+  } else {
+    A <- as_par_matrix(A, n, K)
+    do.call(cbind, lapply(seq_len(K),
+                          \(j) rdm_log_S(t[, j], A[, j], b[, j], v[, j])))
+  }
+  log_f <- if (fixed_start) {
+    rdm_log_f_ig(t[win], b[win], v[win])
+  } else {
+    rdm_log_f(t[win], A[win], b[win], v[win])
+  }
   log_f + rowSums(log_S) - log_S[win]
 }
 

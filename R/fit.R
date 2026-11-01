@@ -46,7 +46,9 @@
 #'   and [rdm_formula()].
 #' @param fixed Named list of parameters held constant on their natural scale,
 #'   e.g. `list(s = 1)`. A fixed `b` is the threshold itself, not the distance.
-#'   The value can have length 1 (shared) or one value per accumulator.
+#'   The value can have length 1 (shared) or one value per accumulator. `A` may
+#'   also be fixed at zero for all accumulators, which drops the start-point
+#'   variability; that is the same model as leaving `A` out of the formula.
 #' @param contrasts Named list of contrast matrices, passed on to
 #'   [stats::model.matrix()]. The contrasts of a term inside `acc()` are given
 #'   under its full name, e.g. `list("acc(.acc == Word)" = contr.sum)`.

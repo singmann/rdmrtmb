@@ -18,6 +18,39 @@ test_that("fit_rdm returns a fitted object without random effects", {
   expect_lt(f$max_grad, 1e-2)
 })
 
+test_that("a model without start-point variability can be fitted", {
+  dat <- simulate_data(seed = 5)
+  f <- fit_rdm(dat, rt = "rt", response = "response",
+               formula = list(t0 = ~1, b = ~1, v = ~ acc(1)))
+  expect_true(f$converged)
+  expect_named(f$beta, c("b:(Intercept)", "t0:(Intercept)", "v[1]:(Intercept)",
+                         "v[2]:(Intercept)", "v[3]:(Intercept)"))
+  expect_true(is.finite(f$loglik))
+  expect_equal(unique(fitted(f)$A), 0)
+
+  ## the likelihood of all trials, from the inverse-Gaussian density and
+  ## survival of the fitted parameters
+  pars <- fitted(f)
+  v <- as.matrix(pars[, c("v1", "v2", "v3")])
+  t <- dat$rt - pars$t0
+  ref <- vapply(seq_len(nrow(dat)), function(i) {
+    j <- dat$response[i]
+    exp(rdm_log_f_ig(t[i], pars$b[i], v[i, j])) *
+      prod(exp(rdm_log_S_ig(t[i], pars$b[i], v[i, -j])))
+  }, 0)
+  expect_equal(sum(log(ref)), unname(as.numeric(logLik(f))), tolerance = 1e-8)
+
+  ## the predicted probabilities of the three responses still sum to one
+  expect_equal(unname(rowSums(predict(f, type = "probs"))), rep(1, nrow(dat)),
+               tolerance = 1e-6)
+
+  ## fixing A at zero is the same model as leaving it out
+  fixed_zero <- fit_rdm(dat, rt = "rt", response = "response",
+                        formula = list(t0 = ~1, b = ~1, v = ~ acc(1)),
+                        fixed = list(A = 0), sdreport = FALSE)
+  expect_equal(coef(fixed_zero), coef(f), tolerance = 1e-6)
+})
+
 test_that("fit_rdm estimates random effects", {
   f <- small_fit()
   expect_true(f$converged)

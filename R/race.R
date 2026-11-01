@@ -40,13 +40,17 @@ rdm_race_dist <- function(mp, m = 300L, probs = NULL) {
   weight <- gr$w
   grid <- gr$t
 
+  ## without start-point variability the first-passage times are inverse Gaussian
+  fixed_start <- all(A == 0)
   log_f <- log_S <- vector("list", K)
   for (j in seq_len(K)) {
     Aj <- matrix(A[, j], n, m)
     bj <- matrix(b[, j], n, m)
     vj <- matrix(v[, j], n, m)
-    log_f[[j]] <- rdm_log_f(gr$t, Aj, bj, vj)
-    log_S[[j]] <- rdm_log_S(gr$t, Aj, bj, vj)
+    log_f[[j]] <- if (fixed_start) rdm_log_f_ig(gr$t, bj, vj) else
+      rdm_log_f(gr$t, Aj, bj, vj)
+    log_S[[j]] <- if (fixed_start) rdm_log_S_ig(gr$t, bj, vj) else
+      rdm_log_S(gr$t, Aj, bj, vj)
   }
   total_S <- Reduce(`+`, log_S)
 

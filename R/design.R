@@ -270,8 +270,18 @@ par_contrasts <- function(extra = NULL, used = NULL) {
 ## a parameter held constant: either one value for all accumulators or one value
 ## per accumulator, recycled to the required length
 fixed_spec <- function(value, n, par, K) {
-  if (!is.numeric(value) || anyNA(value) || any(value <= 0)) {
-    stop("the fixed value for `", par, "` must be a positive number.", call. = FALSE)
+  ## A may be zero, which drops the start-point variability, but only for every
+  ## accumulator, because the two likelihoods are different
+  if (!is.numeric(value) || anyNA(value) || any(value < 0) ||
+      (par != "A" && any(value <= 0))) {
+    stop("the fixed value for `", par, "` must be a positive number",
+         if (par == "A") " or zero for all accumulators" else "", ".",
+         call. = FALSE)
+  }
+  if (any(value == 0) && any(value > 0)) {
+    stop("`A` can only be fixed at zero for all accumulators, because the ",
+         "likelihood without start-point variability is a different model.",
+         call. = FALSE)
   }
   if (length(value) == 1) {
     value <- rep(value, n)
